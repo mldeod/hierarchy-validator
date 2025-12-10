@@ -1,11 +1,20 @@
 """
 Hierarchy Validator - Validation Engine
 Core validation functions for parent-child hierarchies
+Extracted from vena_hierarchy_validator_v8_final.py
 """
 
 import pandas as pd
 from collections import defaultdict
 from rapidfuzz import fuzz, distance
+
+
+def get_member_display(member, alias):
+    """Format member display with alias"""
+    if alias and str(alias) != 'nan':
+        return f"{member} ({alias})"
+    return member
+
 
 def classify_difference(member_name, parent_ref):
     """
@@ -143,6 +152,22 @@ def explain_whitespace_difference(str1, str2, ops):
     return "whitespace", explanation, True, is_vena_invalid
 
 
+def count_children_fuzzy(df, member_name, max_edit_distance=2):
+    """Count children using fuzzy matching"""
+    total_children = 0
+    for idx, row in df.iterrows():
+        parent_ref = row['_parent_name']
+        if pd.notna(parent_ref):
+            parent_str = str(parent_ref)
+            if parent_str == member_name:
+                total_children += 1
+            else:
+                edit_dist = distance.Levenshtein.distance(member_name, parent_str)
+                if 1 <= edit_dist <= max_edit_distance:
+                    total_children += 1
+    return total_children
+
+
 def find_orphans(df, max_edit_distance=2):
     """
     Find TRUE ORPHANS - parent references that don't exist as members at all
@@ -263,6 +288,7 @@ def find_parent_mismatches(df, max_edit_distance=2):
     
     return mismatches
 
+
 def find_duplicate_members(df):
     """Find duplicate member names with fuzzy children counting"""
     member_instances = defaultdict(list)
@@ -295,6 +321,7 @@ def find_duplicate_members(df):
                 })
     
     return duplicate_errors, duplicate_warnings
+
 
 def find_whitespace_issues(df):
     """Find internal whitespace issues (double spaces) grouped by distinct text
