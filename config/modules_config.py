@@ -19,7 +19,7 @@ AVAILABLE_MODULES = {
         'icon': '✓',
         'version': '1.0',
         'price': 5000,
-        'enabled': True  # Set per client
+        'enabled': True  # Fixed - all functions restored
     },
     'data_quality_checker': {
         'name': 'Data Quality Checker',
