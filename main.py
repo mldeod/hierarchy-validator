@@ -95,4 +95,4 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### Support")
-    st.markdown("Need help? Contact: manu@venaaccelerator.com")
+    st.markdown("Need help? Contact: support@hierarchyvalidator.com")
