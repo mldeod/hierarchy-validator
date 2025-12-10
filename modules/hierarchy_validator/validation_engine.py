@@ -7,6 +7,142 @@ import pandas as pd
 from collections import defaultdict
 from rapidfuzz import fuzz, distance
 
+def classify_difference(member_name, parent_ref):
+    """
+    Classify the type of difference between member name (reference) and parent reference (analyzed)
+    Returns: (category, explanation, is_whitespace_only, is_vena_invalid)
+    
+    is_vena_invalid = True if the difference involves leading/trailing whitespace or tabs
+    """
+    from rapidfuzz.distance import Levenshtein
+    
+    # Get edit operations
+    ops = Levenshtein.editops(member_name, parent_ref)
+    
+    if not ops:
+        return "identical", "", False, False
+    
+    # Check if ALL operations are whitespace
+    whitespace_only = True
+    for op_type, src_pos, dest_pos in ops:
+        if op_type == 'delete':
+            char = member_name[src_pos] if src_pos < len(member_name) else ' '
+        elif op_type == 'insert':
+            char = parent_ref[dest_pos] if dest_pos < len(parent_ref) else ' '
+        elif op_type == 'replace':
+            char1 = member_name[src_pos] if src_pos < len(member_name) else ' '
+            char2 = parent_ref[dest_pos] if dest_pos < len(parent_ref) else ' '
+            if char1 not in ' \t\n' and char2 not in ' \t\n':
+                whitespace_only = False
+                break
+        
+        if char not in ' \t\n':
+            whitespace_only = False
+            break
+    
+    # If whitespace-only, explain the whitespace issue
+    if whitespace_only:
+        return explain_whitespace_difference(member_name, parent_ref, ops)
+    
+    # Check if only capitalization difference
+    if member_name.lower() == parent_ref.lower():
+        # Find which character differs
+        for i, (c1, c2) in enumerate(zip(member_name, parent_ref)):
+            if c1 != c2:
+                return "capitalization", f"'{c1}' vs '{c2}' at position {i}", False, False
+        return "capitalization", "Case difference", False, False
+    
+    # Explain the typo
+    if len(ops) == 1:
+        op_type, src_pos, dest_pos = ops[0]
+        
+        if op_type == 'delete':
+            # Delete from member to get to parent = parent is MISSING this char
+            char = member_name[src_pos]
+            return "typo", f"Missing '{char}' in parent at pos {src_pos}", False, False
+        elif op_type == 'insert':
+            # Insert into member to get to parent = parent has EXTRA char
+            char = parent_ref[dest_pos]
+            return "typo", f"Extra '{char}' in parent at pos {dest_pos}", False, False
+        elif op_type == 'replace':
+            char1 = member_name[src_pos]
+            char2 = parent_ref[dest_pos]
+            return "typo", f"'{char2}' Should be '{char1}' at pos {src_pos}", False, False
+    
+    # Multiple operations
+    return "typo", f"{len(ops)} Character differences", False, False
+
+
+def explain_whitespace_difference(str1, str2, ops):
+    """Explain whitespace-specific differences
+    
+    Returns: (category, explanation, is_whitespace_only, is_vena_invalid)
+    is_vena_invalid = True if involves leading/trailing whitespace or tabs (INVALID in Vena)
+    """
+    issues = []
+    is_vena_invalid = False
+    
+    # Check for Vena-invalid whitespace: leading, trailing, or tabs
+    has_leading = str1.lstrip() != str1 or str2.lstrip() != str2
+    has_trailing = str1.rstrip() != str1 or str2.rstrip() != str2
+    has_tabs = '\t' in str1 or '\t' in str2
+    
+    if has_leading or has_trailing or has_tabs:
+        is_vena_invalid = True
+    
+    # Analyze each operation to see what's different
+    for op_type, src_pos, dest_pos in ops:
+        if op_type == 'insert':
+            # Parent has extra character
+            char = str2[dest_pos] if dest_pos < len(str2) else ' '
+            if char == ' ':
+                # Check if it's trailing
+                if dest_pos == len(str2) - 1:
+                    issues.append("trailing space")
+                # Check if it creates double space
+                elif dest_pos > 0 and str2[dest_pos - 1] == ' ':
+                    issues.append("extra space")
+                elif dest_pos < len(str2) - 1 and str2[dest_pos + 1] == ' ':
+                    issues.append("extra space")
+                else:
+                    issues.append("extra space")
+            elif char == '\t':
+                issues.append("tab character")
+        elif op_type == 'delete':
+            # Member has extra character (parent missing it)
+            char = str1[src_pos] if src_pos < len(str1) else ' '
+            if char == ' ':
+                issues.append("missing space")
+            elif char == '\t':
+                issues.append("missing tab")
+    
+    if not issues:
+        # Fallback - check for general whitespace issues
+        if '  ' in str1 or '  ' in str2:
+            issues.append("double space")
+        if has_trailing:
+            issues.append("trailing space")
+        if has_leading:
+            issues.append("leading space")
+        if has_tabs:
+            issues.append("tab character")
+    
+    explanation = ", ".join(set(issues))  # Remove duplicates
+    
+    # Add Vena warning to explanation if invalid (lowercase for now)
+    if is_vena_invalid:
+        explanation = f"{explanation} (invalid in vena)"
+    
+    # Fix "Vena" capitalization (the exception!)
+    explanation = explanation.replace("vena", "Vena")
+    
+    # Capitalize only first letter of the whole explanation
+    if explanation:
+        explanation = explanation[0].upper() + explanation[1:] if len(explanation) > 1 else explanation.upper()
+    
+    return "whitespace", explanation, True, is_vena_invalid
+
+
 def find_orphans(df, max_edit_distance=2):
     """
     Find TRUE ORPHANS - parent references that don't exist as members at all
