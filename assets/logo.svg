@@ -1,0 +1,16 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- White background circle -->
+  <circle cx="100" cy="100" r="100" fill="white"/>
+  
+  <!-- Outer ring -->
+  <circle cx="100" cy="100" r="85" fill="none" stroke="#0051D5" stroke-width="8"/>
+  
+  <!-- Middle ring -->
+  <circle cx="100" cy="100" r="55" fill="none" stroke="#0051D5" stroke-width="8"/>
+  
+  <!-- Inner ring -->
+  <circle cx="100" cy="100" r="25" fill="none" stroke="#0051D5" stroke-width="8"/>
+  
+  <!-- Center dot -->
+  <circle cx="100" cy="100" r="10" fill="#0051D5"/>
+</svg>
