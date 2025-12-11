@@ -1,15 +1,12 @@
 """
-Hierarchy Validator Module - UI Layer
+Hierarchy Validator Module - UI Layer (v8 Elegant)
 Validate parent-child hierarchies with comprehensive error detection
+Beautiful light-themed presentation
 """
 
 import streamlit as st
 import pandas as pd
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from collections import defaultdict
 
 # Import validation engine
 from modules.hierarchy_validator.validation_engine import (
@@ -21,358 +18,443 @@ from modules.hierarchy_validator.validation_engine import (
 
 def render(workflow_data=None):
     """
-    Render the Hierarchy Validator module
+    Render the Hierarchy Validator module with v8 elegant styling
     
     Args:
         workflow_data: DataFrame passed from another module (optional)
     """
     
-    st.markdown("### Validate Parent-Child Hierarchy")
-    
-    st.markdown("""
-    <div class="info-box">
-        <p><strong>Comprehensive hierarchy validation including:</strong></p>
-        <ul>
-            <li>Orphaned members (parent doesn't exist)</li>
-            <li>Parent name mismatches (typos, whitespace)</li>
-            <li>Duplicate members with different parents</li>
-            <li>Vena naming restrictions (80+ chars, special characters)</li>
-            <li>Whitespace issues (leading/trailing spaces, tabs)</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Initialize session state
-    if 'validator_results' not in st.session_state:
-        st.session_state.validator_results = None
-    if 'validator_file_key' not in st.session_state:
-        st.session_state.validator_file_key = 0
-    if 'validator_workflow_data' not in st.session_state:
-        st.session_state.validator_workflow_data = None
-    
-    # Store workflow data in session state on first load
-    if workflow_data is not None and st.session_state.validator_workflow_data is None:
-        st.session_state.validator_workflow_data = workflow_data.copy()
-    
-    # Determine data source
-    df = None
-    data_source = None
-    
-    # Check session state first
-    if st.session_state.validator_workflow_data is not None:
-        df = st.session_state.validator_workflow_data
-        data_source = "workflow"
+    # File upload or workflow data
+    if workflow_data is not None:
+        df = workflow_data
+        uploaded_file = None
+    else:
+        st.markdown("### Validate Parent-Child Hierarchy")
+        
         st.markdown("""
-        <div class="success-box">
-            <h3>✓ Data Received from Tree Converter</h3>
-            <p>Your converted hierarchy has been automatically loaded and is ready to validate.</p>
+        <div class="info-box">
+            <p><strong>Comprehensive hierarchy validation including:</strong></p>
+            <ul>
+                <li>Orphaned members (parent doesn't exist)</li>
+                <li>Parent name mismatches (typos, whitespace)</li>
+                <li>Duplicate members with different parents</li>
+                <li>Vena naming restrictions (80+ chars, special characters)</li>
+                <li>Whitespace issues (leading/trailing spaces, tabs)</li>
+            </ul>
         </div>
         """, unsafe_allow_html=True)
-    else:
-        # File upload
-        st.markdown("---")
+        
         uploaded_file = st.file_uploader(
-            "Upload Hierarchy File",
+            "Upload parent-child hierarchy file",
             type=['xlsx', 'xls', 'csv'],
-            help="Upload your parent-child hierarchy file (CSV or Excel)",
-            key=f"validator_upload_{st.session_state.validator_file_key}"
+            help="Must contain _member_name and _parent_name columns"
         )
         
-        if uploaded_file:
-            try:
-                if uploaded_file.name.endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                else:
-                    df = pd.read_excel(uploaded_file)
-                data_source = "upload"
-                st.success(f"File loaded: {uploaded_file.name}")
-            except Exception as e:
-                st.error(f"Error loading file: {str(e)}")
-                return
-    
-    # Process data if available
-    if df is not None:
-        
-        # Validate required columns
-        if '_member_name' not in df.columns or '_parent_name' not in df.columns:
-            st.error("❌ Missing required columns: _member_name and _parent_name")
-            st.info("Expected columns: _dim, _member_name, _member_alias, _parent_name, _operator, _cmd")
+        if not uploaded_file:
             return
         
-        # Show data preview
-        st.markdown("---")
-        st.markdown("#### Data Preview")
-        st.dataframe(df.head(10), width="stretch")
-        
-        st.markdown(f"""
-        <div class="tip-box">
-            <small><strong>Loaded:</strong> {len(df):,} rows × {len(df.columns)} columns</small>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Validate button
-        if st.button("Validate Hierarchy", type="primary", width="stretch", key="validator_run"):
-            with st.spinner('Running validation checks...'):
-                
-                # Run all validation checks
-                orphans = find_orphans(df, max_edit_distance=2)
-                mismatches = find_parent_mismatches(df, max_edit_distance=2)
-                duplicate_errors, duplicate_warnings = find_duplicate_members(df)
-                whitespace_issues = find_whitespace_issues(df)
-                
-                # Check Vena length restrictions
-                vena_length_violations = []
-                for idx, row in df.iterrows():
-                    member = str(row['_member_name'])
-                    parent = str(row['_parent_name'])
-                    
-                    if len(member) > 80:
-                        vena_length_violations.append({
-                            'row': idx,
-                            'column': '_member_name',
-                            'value': member,
-                            'length': len(member)
-                        })
-                    if len(parent) > 80:
-                        vena_length_violations.append({
-                            'row': idx,
-                            'column': '_parent_name', 
-                            'value': parent,
-                            'length': len(parent)
-                        })
-                
-                # Store results
-                st.session_state.validator_results = {
-                    'orphans': orphans,
-                    'mismatches': mismatches,
-                    'duplicate_errors': duplicate_errors,
-                    'duplicate_warnings': duplicate_warnings,
-                    'whitespace_issues': whitespace_issues,
-                    'vena_length_violations': vena_length_violations,
-                    'df': df
-                }
-        
-        # Display results if available
-        if st.session_state.validator_results is not None:
-            results = st.session_state.validator_results
-            
-            orphans = results['orphans']
-            mismatches = results['mismatches']
-            duplicate_errors = results['duplicate_errors']
-            duplicate_warnings = results['duplicate_warnings']
-            whitespace_issues = results['whitespace_issues']
-            vena_length_violations = results['vena_length_violations']
-            
-            total_errors = len(orphans) + len(mismatches) + len(duplicate_errors) + len(vena_length_violations)
-            total_warnings = len(duplicate_warnings) + len(whitespace_issues)
-            
-            st.markdown("---")
-            st.markdown("#### Validation Results")
-            
-            # Summary badges
-            if total_errors == 0 and total_warnings == 0:
-                st.markdown("""
-                <div class="success-box">
-                    <h2 style="margin: 0;">✓ Perfect Hierarchy!</h2>
-                    <p style="margin: 10px 0 0 0;">No errors or warnings found. Your hierarchy is ready for Vena import.</p>
-                </div>
-                """, unsafe_allow_html=True)
+        # Read file
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
             else:
-                # Summary metrics
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h2 style="color: {'#ff3b30' if total_errors > 0 else '#34c759'}; margin: 0;">{total_errors}</h2>
-                        <p style="margin: 5px 0 0 0; color: #6e6e73;">Errors</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h2 style="color: {'#ff9500' if total_warnings > 0 else '#34c759'}; margin: 0;">{total_warnings}</h2>
-                        <p style="margin: 5px 0 0 0; color: #6e6e73;">Warnings</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col3:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h2 style="color: #0051D5; margin: 0;">{len(df):,}</h2>
-                        <p style="margin: 5px 0 0 0; color: #6e6e73;">Total Members</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Build master issue table
-                master_table = []
-                issue_num = 1
-                
-                # ORPHANS
-                for parent_str, data in orphans.items():
-                    excel_rows = [r + 2 for r in data['rows']]
-                    rows_str = ', '.join(map(str, sorted(excel_rows)))
-                    
-                    cause = "Parent doesn't exist as member"
-                    if data['has_whitespace']:
-                        cause += " (has whitespace)"
-                    
-                    master_table.append({
-                        'Issue': f"#{issue_num}",
-                        'Type': 'Error',
-                        'Category': 'Orphan',
-                        'Member': '—',
-                        'Parent': parent_str,
-                        'Cause': cause,
-                        'Rows': rows_str
-                    })
-                    issue_num += 1
-                
-                # PARENT MISMATCHES
-                for mismatch in mismatches:
-                    member_name = mismatch["correct_member"]
-                    member_alias = mismatch.get("correct_member_alias", "")
-                    
-                    if member_alias and str(member_alias) != 'nan':
-                        if any(char.isdigit() for char in member_name):
-                            member_name = f"{member_name} ({member_alias})"
-                    
-                    parent_ref = mismatch["parent_ref"]
-                    cause = mismatch.get("cause_explanation", "Name mismatch")
-                    
-                    child_rows = [child['row'] + 2 for child in mismatch['affected_children']]
-                    rows_str = ', '.join(map(str, sorted(child_rows)))
-                    
-                    master_table.append({
-                        'Issue': f"#{issue_num}",
-                        'Type': 'Error',
-                        'Category': 'Mismatch',
-                        'Member': member_name,
-                        'Parent': parent_ref,
-                        'Cause': cause,
-                        'Rows': rows_str
-                    })
-                    issue_num += 1
-                
-                # DUPLICATE ERRORS
-                for dup in duplicate_errors:
-                    excel_rows = [inst['row'] + 2 for inst in dup['instances']]
-                    rows_str = ', '.join(map(str, sorted(excel_rows)))
-                    
-                    name = dup["member_name"]
-                    alias = dup['instances'][0].get('alias', '') if dup['instances'] else ''
-                    if alias and str(alias) != 'nan':
-                        if any(char.isdigit() for char in name):
-                            name = f"{name} ({alias})"
-                    
-                    master_table.append({
-                        'Issue': f"#{issue_num}",
-                        'Type': 'Error',
-                        'Category': 'Duplicate',
-                        'Member': name,
-                        'Parent': '—',
-                        'Cause': f'{dup.get("total_children", 0)} children',
-                        'Rows': rows_str
-                    })
-                    issue_num += 1
-                
-                # VENA LENGTH VIOLATIONS
-                for violation in vena_length_violations:
-                    excel_row = violation['row'] + 2
-                    
-                    master_table.append({
-                        'Issue': f"#{issue_num}",
-                        'Type': 'Error',
-                        'Category': 'Vena Limit',
-                        'Member': violation['value'][:50] + '...',
-                        'Parent': '—',
-                        'Cause': f'{violation["length"]} chars (max 80)',
-                        'Rows': str(excel_row)
-                    })
-                    issue_num += 1
-                
-                # DUPLICATE WARNINGS
-                for dup in duplicate_warnings:
-                    excel_rows = [inst['row'] + 2 for inst in dup['instances']]
-                    rows_str = ', '.join(map(str, sorted(excel_rows)))
-                    
-                    name = dup["member_name"]
-                    
-                    master_table.append({
-                        'Issue': f"#{issue_num}",
-                        'Type': 'Warning',
-                        'Category': 'Duplicate Leaf',
-                        'Member': name,
-                        'Parent': '—',
-                        'Cause': 'All leaves (acceptable)',
-                        'Rows': rows_str
-                    })
-                    issue_num += 1
-                
-                # WHITESPACE ISSUES
-                for issue in whitespace_issues:
-                    rows_str = ', '.join(map(str, [r + 2 for r in issue['rows']]))
-                    
-                    master_table.append({
-                        'Issue': f"#{issue_num}",
-                        'Type': 'Warning',
-                        'Category': 'Whitespace',
-                        'Member': issue.get('member_name', '—'),
-                        'Parent': '—',
-                        'Cause': ', '.join(issue['issues']),
-                        'Rows': rows_str
-                    })
-                    issue_num += 1
-                
-                # Display master table
-                if master_table:
-                    st.markdown("---")
-                    st.markdown("#### Issues Found")
-                    
-                    issues_df = pd.DataFrame(master_table)
-                    st.dataframe(issues_df, width="stretch", height=400)
-                    
-                    # Download button for issues
-                    csv = issues_df.to_csv(index=False)
-                    st.download_button(
-                        label="Download Issues Report (CSV)",
-                        data=csv,
-                        file_name="hierarchy_issues_report.csv",
-                        mime="text/csv",
-                        key="validator_download_issues"
-                    )
-                
-                # Summary
-                st.markdown("---")
-                if total_errors > 0:
-                    st.markdown(f"""
-                    <div class="error-box">
-                        <h3>Action Required</h3>
-                        <p>Found <strong>{total_errors} errors</strong> that must be fixed before importing to Vena.</p>
-                        <p>Review the issues table above and correct the data in your source file.</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="success-box">
-                        <h3>Ready to Import</h3>
-                        <p>No errors found! Your hierarchy is ready for Vena.</p>
-                        {f'<p><small>Note: {total_warnings} warnings detected but these won\'t prevent import.</small></p>' if total_warnings > 0 else ''}
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            # Clear button
-            if st.button("Clear Results and Load New File", width="stretch", key="validator_clear"):
-                st.session_state.validator_results = None
-                st.session_state.validator_workflow_data = None
-                st.session_state.validator_file_key += 1
-                st.rerun()
+                df = pd.read_excel(uploaded_file)
+        except Exception as e:
+            st.error(f"Error reading file: {str(e)}")
+            return
     
+    # Validate required columns
+    if '_member_name' not in df.columns or '_parent_name' not in df.columns:
+        st.error("❌ Missing required columns: `_member_name` and `_parent_name`")
+        return
+    
+    # Run validation
+    with st.spinner('Running validation checks...'):
+        orphans = find_orphans(df, max_edit_distance=2)
+        mismatches = find_parent_mismatches(df, max_edit_distance=2)
+        duplicate_errors, duplicate_warnings = find_duplicate_members(df)
+        whitespace_issues = find_whitespace_issues(df)
+    
+    total_errors = len(orphans) + len(mismatches) + len(duplicate_errors)
+    total_warnings = len(duplicate_warnings) + len(whitespace_issues)
+    
+    # Summary badges
+    if total_errors == 0 and total_warnings == 0:
+        st.markdown('<div style="text-align: center; margin: 20px 0;"><span class="summary-badge badge-success">✓ No issues found</span></div>', unsafe_allow_html=True)
     else:
-        # No data loaded
-        st.markdown("""
-        <div class="tip-box">
-            <small><strong>Tip:</strong> You can send data directly from the Tree Converter, or upload your own parent-child file here!</small>
-        </div>
-        """, unsafe_allow_html=True)
+        summary_html = '<div style="text-align: center; margin: 20px 0;">'
+        if total_errors > 0:
+            summary_html += f'<span class="summary-badge badge-error">{total_errors} error{"s" if total_errors > 1 else ""}</span>'
+        if total_warnings > 0:
+            summary_html += f'<span class="summary-badge badge-warning">{total_warnings} warning{"s" if total_warnings > 1 else ""}</span>'
+        summary_html += '</div>'
+        st.markdown(summary_html, unsafe_allow_html=True)
+        
+        # Build master table
+        st.markdown('<div class="results-container">', unsafe_allow_html=True)
+        
+        master_table = []
+        issue_num = 1
+        
+        # ORPHANS - Most critical! Parent doesn't exist at all
+        for parent_str, data in orphans.items():
+            excel_rows = [r + 2 for r in data['rows']]
+            rows_str = ', '.join(map(str, sorted(excel_rows)))
+            
+            # Build cause explanation
+            cause = "parent doesn't exist as member"
+            if data['has_whitespace']:
+                if data['is_vena_invalid']:
+                    cause += " (also has vena-invalid whitespace)"
+                else:
+                    cause += " (also has whitespace issues)"
+            
+            # Fix Vena capitalization then capitalize first letter
+            cause = cause.replace("vena", "Vena")
+            cause = cause[0].upper() + cause[1:] if len(cause) > 1 else cause.upper()
+            
+            master_table.append({
+                'Issue': f"#{issue_num}",
+                'Type': 'Error',
+                'Category': 'Orphan',
+                'Member Name': '—',
+                'Parent Name': parent_str,
+                'Cause': cause,
+                'Rows': rows_str
+            })
+            issue_num += 1
+        
+        # Parent mismatches
+        for mismatch in mismatches:
+            # Format member name with alias if it's a numeric ID
+            member_name = mismatch["correct_member"]
+            member_alias = mismatch["correct_member_alias"]
+            if member_alias and str(member_alias) != 'nan':
+                if any(char.isdigit() for char in member_name):
+                    member_name = f"{member_name} ({member_alias})"
+            
+            # Parent reference (what children are using)
+            parent_ref = mismatch["parent_ref"]
+            
+            # Cause explanation
+            cause = mismatch["cause_explanation"]
+            
+            # Get all affected child rows
+            child_rows = [child['row'] + 2 for child in mismatch['affected_children']]
+            rows_str = ', '.join(map(str, sorted(child_rows)))
+            
+            master_table.append({
+                'Issue': f"#{issue_num}",
+                'Type': 'Error',
+                'Category': 'Parent Mismatch',
+                'Member Name': member_name,
+                'Parent Name': parent_ref,
+                'Cause': cause,
+                'Rows': rows_str
+            })
+            issue_num += 1
+        
+        # Duplicate errors
+        for dup in duplicate_errors:
+            excel_rows = [inst['row'] + 2 for inst in dup['instances']]
+            rows_str = ', '.join(map(str, sorted(excel_rows)))
+            
+            # Format name with alias if it's a numeric ID
+            name = dup["member_name"]
+            alias = dup['instances'][0]['alias'] if dup['instances'] else ''
+            if alias and str(alias) != 'nan':
+                if any(char.isdigit() for char in name):
+                    name = f"{name} ({alias})"
+            
+            master_table.append({
+                'Issue': f"#{issue_num}",
+                'Type': 'Error',
+                'Category': 'Duplicate',
+                'Member Name': name,
+                'Parent Name': '—',
+                'Cause': f'{dup["total_children"]} children (fuzzy)',
+                'Rows': rows_str
+            })
+            issue_num += 1
+        
+        # Duplicate warnings
+        for dup in duplicate_warnings:
+            excel_rows = [inst['row'] + 2 for inst in dup['instances']]
+            rows_str = ', '.join(map(str, sorted(excel_rows)))
+            
+            # Format name with alias if it's a numeric ID
+            name = dup["member_name"]
+            alias = dup['instances'][0]['alias'] if dup['instances'] else ''
+            if alias and str(alias) != 'nan':
+                if any(char.isdigit() for char in name):
+                    name = f"{name} ({alias})"
+            
+            master_table.append({
+                'Issue': f"#{issue_num}",
+                'Type': 'Warning',
+                'Category': 'Duplicate Leaf',
+                'Member Name': name,
+                'Parent Name': '—',
+                'Cause': 'All leaves (acceptable)',
+                'Rows': rows_str
+            })
+            issue_num += 1
+        
+        # Build sets of rows already flagged - track by column
+        flagged_member_column_rows = set()
+        flagged_parent_column_rows = set()
+        
+        # Rows from orphans (parent column flagged)
+        for parent_str, data in orphans.items():
+            for row in data['rows']:
+                flagged_parent_column_rows.add(row)
+        
+        # Rows from parent mismatches (parent column flagged)
+        for mismatch in mismatches:
+            for child in mismatch['affected_children']:
+                flagged_parent_column_rows.add(child['row'])
+        
+        # Rows from duplicates (member column flagged)
+        for dup in duplicate_errors + duplicate_warnings:
+            for inst in dup['instances']:
+                flagged_member_column_rows.add(inst['row'])
+        
+        # Build set of parent names already flagged
+        flagged_parent_names = set()
+        for parent_str in orphans.keys():
+            flagged_parent_names.add(parent_str)
+        for mismatch in mismatches:
+            if mismatch['is_whitespace']:
+                flagged_parent_names.add(mismatch['parent_ref'])
+        
+        # VENA LENGTH VALIDATION - Check ONLY for 80+ character limit
+        vena_length_violations = []
+        
+        for idx, row in df.iterrows():
+            member = str(row['_member_name'])
+            parent = str(row['_parent_name']) if pd.notna(row['_parent_name']) else None
+            
+            excel_row = idx + 2
+            
+            # Check member length
+            if len(member) > 80:
+                vena_length_violations.append({
+                    'Issue': f"#{issue_num}",
+                    'Type': 'Error',
+                    'Category': 'Vena Restriction',
+                    'Member Name': member,
+                    'Parent Name': '—',
+                    'Cause': f'Member exceeds 80 chars ({len(member)} chars)',
+                    'Rows': str(excel_row)
+                })
+                issue_num += 1
+            
+            # Check parent length
+            if parent and len(parent) > 80:
+                vena_length_violations.append({
+                    'Issue': f"#{issue_num}",
+                    'Type': 'Error',
+                    'Category': 'Vena Restriction',
+                    'Member Name': '—',
+                    'Parent Name': parent,
+                    'Cause': f'Parent exceeds 80 chars ({len(parent)} chars)',
+                    'Rows': str(excel_row)
+                })
+                issue_num += 1
+        
+        master_table.extend(vena_length_violations)
+        
+        # Whitespace issues - only if not already flagged
+        for ws in whitespace_issues:
+            column = ws['column']
+            text = ws['text']
+            rows = ws['rows']
+            cause = ', '.join(ws['issues'])
+            
+            # Capitalize first letter
+            cause = cause[0].upper() + cause[1:] if len(cause) > 1 else cause.upper()
+            
+            # Filter rows based on column
+            if column == '_member_name':
+                # Skip if member column already flagged
+                unflagged_rows = [r for r in rows if r not in flagged_member_column_rows]
+            else:  # _parent_name
+                # Skip if parent name already flagged OR if this parent name is in error list
+                if text in flagged_parent_names:
+                    continue
+                unflagged_rows = [r for r in rows if r not in flagged_parent_column_rows]
+            
+            if unflagged_rows:
+                excel_rows = [r + 2 for r in unflagged_rows]
+                rows_str = ', '.join(map(str, sorted(excel_rows)))
+                
+                # Determine member vs parent
+                if column == '_member_name':
+                    member_name = text
+                    parent_name = '—'
+                else:
+                    member_name = '—'
+                    parent_name = text
+                
+                master_table.append({
+                    'Issue': f"#{issue_num}",
+                    'Type': 'Warning',
+                    'Category': 'Whitespace',
+                    'Member Name': member_name,
+                    'Parent Name': parent_name,
+                    'Cause': f'Both member and parent: {cause}' if member_name != '—' and parent_name != '—' else cause,
+                    'Rows': rows_str
+                })
+                issue_num += 1
+        
+        # Group by member name for family display
+        families = defaultdict(list)
+        flagged_member_names = set()
+        
+        for issue in master_table:
+            member = issue['Member Name']
+            parent = issue['Parent Name']
+            
+            # Use member as family key if present
+            if member != '—':
+                families[member].append(issue)
+            elif parent != '—':
+                # If no member, use parent as key
+                families[parent].append(issue)
+            else:
+                # Both are blank - standalone issue
+                families[f"_standalone_{len(families)}"].append(issue)
+            
+            # Track flagged names
+            if issue['Category'] == 'Whitespace':
+                if member != '—':
+                    flagged_member_names.add(member)
+                if parent != '—':
+                    flagged_parent_names.add(parent)
+        
+        # Build final table with family sub-numbering
+        final_table = []
+        issue_num = 1
+        
+        for family_key, issues in families.items():
+            if len(issues) == 1:
+                # Single issue - no family
+                issue = issues[0]
+                
+                # Filter whitespace warnings for names already flagged
+                if issue['Category'] == 'Whitespace':
+                    member = issue['Member Name']
+                    parent = issue['Parent Name']
+                    
+                    # Keep primary warnings (both member and parent set)
+                    if member != '—' and parent != '—':
+                        pass
+                    else:
+                        # Secondary warning - filter if flagged
+                        if member != '—' and (member in flagged_member_names or member in flagged_parent_names):
+                            continue
+                        if parent != '—' and (parent in flagged_member_names or parent in flagged_parent_names):
+                            continue
+                
+                issue['Issue'] = f"#{issue_num}"
+                final_table.append(issue)
+                issue_num += 1
+            else:
+                # Family - multiple issues for same member
+                for sub_idx, sub_issue in enumerate(issues, 1):
+                    sub_issue['Issue'] = f"#{issue_num}.{sub_idx}"
+                    final_table.append(sub_issue)
+                
+                issue_num += 1
+        
+        # Display main table
+        if final_table:
+            df_master = pd.DataFrame(final_table)
+            st.dataframe(
+                df_master,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    'Issue': st.column_config.TextColumn('Issue', width='small'),
+                    'Type': st.column_config.TextColumn('Type', width='small'),
+                    'Category': st.column_config.TextColumn('Category', width='medium'),
+                    'Member Name': st.column_config.TextColumn('Member Name', width='large'),
+                    'Parent Name': st.column_config.TextColumn('Parent Name', width='large'),
+                    'Cause': st.column_config.TextColumn('Cause', width='medium'),
+                    'Rows': st.column_config.TextColumn('Rows', width='medium')
+                }
+            )
+            
+            # Whitespace visualization table
+            if whitespace_issues:
+                st.markdown("---")
+                st.markdown("### 🎨 Whitespace Visualization")
+                st.markdown("*Background colors highlight whitespace issues in your data*")
+                
+                # Collect all rows with whitespace issues
+                ws_row_set = set()
+                for ws in whitespace_issues:
+                    ws_row_set.update(ws['rows'])
+                
+                # Create display data
+                ws_display_rows = []
+                for row_idx in sorted(ws_row_set):
+                    excel_row = row_idx + 2
+                    row_data = df.iloc[row_idx]
+                    
+                    ws_display_rows.append({
+                        'Row': excel_row,
+                        'Member Name': str(row_data['_member_name']),
+                        'Parent Name': str(row_data['_parent_name'])
+                    })
+                
+                if ws_display_rows:
+                    df_ws_viz = pd.DataFrame(ws_display_rows)
+                    
+                    def get_ws_color(text):
+                        """Return background color based on whitespace type"""
+                        if not text or text == 'nan':
+                            return ''
+                        
+                        # Leading/trailing (CRITICAL - RED)
+                        if text != text.strip():
+                            return 'background-color: rgba(255, 100, 100, 0.25)'
+                        
+                        # Double spaces (WARNING - AMBER)
+                        if '  ' in text:
+                            return 'background-color: rgba(255, 200, 80, 0.25)'
+                        
+                        # Clean
+                        return 'background-color: rgba(100, 255, 100, 0.10)'
+                    
+                    def style_ws_table(row):
+                        return [
+                            '',  # Row number - no style
+                            get_ws_color(row['Member Name']),
+                            get_ws_color(row['Parent Name'])
+                        ]
+                    
+                    styled_df = df_ws_viz.style.apply(style_ws_table, axis=1)
+                    
+                    # Legend
+                    st.markdown("""
+                    <div style="display: flex; gap: 20px; margin: 10px 0; font-size: 13px;">
+                        <div><span style="background-color: rgba(255,100,100,0.25); padding: 2px 8px; border-radius: 3px;">🔴 Leading/Trailing</span></div>
+                        <div><span style="background-color: rgba(255,200,80,0.25); padding: 2px 8px; border-radius: 3px;">🟡 Double Space</span></div>
+                        <div><span style="background-color: rgba(100,255,100,0.10); padding: 2px 8px; border-radius: 3px;">✅ Clean</span></div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.dataframe(
+                        styled_df,
+                        hide_index=True,
+                        use_container_width=True,
+                        height=400,
+                        column_config={
+                            'Row': st.column_config.NumberColumn('Row', width='small'),
+                            'Member Name': st.column_config.TextColumn('Member Name', width='large'),
+                            'Parent Name': st.column_config.TextColumn('Parent Name', width='large')
+                        }
+                    )
+        
+        st.markdown('</div>', unsafe_allow_html=True)
