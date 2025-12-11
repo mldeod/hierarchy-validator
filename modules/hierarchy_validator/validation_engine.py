@@ -1,7 +1,6 @@
 """
-Hierarchy Validator - Validation Engine
+Hierarchy Validator - Validation Engine (v8 Elegant)
 Core validation functions for parent-child hierarchies
-Extracted from vena_hierarchy_validator_v8_final.py
 """
 
 import pandas as pd
@@ -14,7 +13,6 @@ def get_member_display(member, alias):
     if alias and str(alias) != 'nan':
         return f"{member} ({alias})"
     return member
-
 
 def classify_difference(member_name, parent_ref):
     """
@@ -167,7 +165,6 @@ def count_children_fuzzy(df, member_name, max_edit_distance=2):
                     total_children += 1
     return total_children
 
-
 def find_orphans(df, max_edit_distance=2):
     """
     Find TRUE ORPHANS - parent references that don't exist as members at all
@@ -288,7 +285,6 @@ def find_parent_mismatches(df, max_edit_distance=2):
     
     return mismatches
 
-
 def find_duplicate_members(df):
     """Find duplicate member names with fuzzy children counting"""
     member_instances = defaultdict(list)
@@ -321,7 +317,6 @@ def find_duplicate_members(df):
                 })
     
     return duplicate_errors, duplicate_warnings
-
 
 def find_whitespace_issues(df):
     """Find internal whitespace issues (double spaces) grouped by distinct text
@@ -373,3 +368,5 @@ def find_whitespace_issues(df):
     
     whitespace_issues.sort(key=lambda x: x['rows'][0])
     return whitespace_issues
+
+# Main app

@@ -1,6 +1,7 @@
 """
-Vena Analytics Accelerator - Shared Styling
-Unified design system across all modules
+Vena Analytics Accelerator - Unified Styling
+Apple-inspired minimalist design system
+Combines Tree Converter (green) and Hierarchy Validator (blue) aesthetics
 """
 
 def get_unified_css():
@@ -9,6 +10,7 @@ def get_unified_css():
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
         
+        /* Base theme */
         .main {
             background: #f5f5f7;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -18,56 +20,102 @@ def get_unified_css():
             .main { background: #1e1e1e; }
         }
         
-        /* Header */
+        /* Header ribbon - neutral gray-blue */
         .header-ribbon {
-            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-            padding: 30px;
+            background: linear-gradient(135deg, #e8f4f8 0%, #d4e9f7 100%);
+            padding: 24px;
             border-radius: 12px;
-            margin: -20px 0 30px 0;
+            margin: -20px 0 24px 0;
             text-align: center;
         }
         
         @media (prefers-color-scheme: dark) {
             .header-ribbon {
-                background: linear-gradient(135deg, #1a3d2a 0%, #0f2d1f 100%);
+                background: linear-gradient(135deg, #1a3a4a 0%, #0d2a3a 100%);
             }
         }
         
         .header-ribbon h1 {
-            color: #155724;
-            font-size: 32px;
+            color: #6e6e73;
+            font-size: 28px;
             font-weight: 400;
             margin: 0;
             letter-spacing: -0.5px;
         }
         
-        .header-ribbon p {
-            color: #6e6e73;
-            margin: 8px 0 0 0;
+        @media (prefers-color-scheme: dark) {
+            .header-ribbon h1 { color: #a8c5d1; }
+        }
+        
+        /* Summary badges - for Hierarchy Validator */
+        .summary-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
             font-size: 14px;
+            font-weight: 500;
+            margin: 0 8px;
+        }
+        
+        .badge-error {
+            background: #ffe5e5;
+            color: #d32f2f;
+        }
+        
+        .badge-warning {
+            background: #fff4e5;
+            color: #f57c00;
+        }
+        
+        .badge-success {
+            background: #e8f5e9;
+            color: #388e3c;
         }
         
         @media (prefers-color-scheme: dark) {
-            .header-ribbon h1 { color: #7ddc8f; }
-            .header-ribbon p { color: #a0a0a0; }
+            .badge-error { background: #3d1a1f; color: #ff8a80; }
+            .badge-warning { background: #3d2f1a; color: #ffb74d; }
+            .badge-success { background: #1a3d2a; color: #7ddc8f; }
+        }
+        
+        /* Results container - for tables */
+        .results-container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 16px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            .results-container {
+                background: #2a2a2a;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+        }
+        
+        /* Table styling */
+        .dataframe {
+            font-size: 13px;
+            border-radius: 8px;
+            overflow: hidden;
         }
         
         /* Buttons */
         .stButton>button {
-            background: #34c759;
+            background: #0051D5;
             color: white;
             border: none;
-            border-radius: 12px;
-            padding: 12px 32px;
-            font-size: 16px;
+            border-radius: 8px;
+            padding: 10px 24px;
+            font-size: 14px;
             font-weight: 500;
-            transition: all 0.3s;
+            transition: all 0.2s;
         }
         
         .stButton>button:hover {
-            background: #2da84a;
+            background: #003D9E;
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(52,199,89,0.3);
         }
         
         .stDownloadButton>button {
@@ -87,7 +135,7 @@ def get_unified_css():
             box-shadow: 0 4px 12px rgba(0,81,213,0.3);
         }
         
-        /* Text inputs - NUCLEAR OPTION */
+        /* Text inputs */
         input[type="text"],
         input[type="email"],
         input[type="number"],
@@ -245,7 +293,7 @@ def get_unified_css():
             }
         }
         
-        /* Tabs styling - Apple elegant with shape */
+        /* Tabs styling - Apple elegant */
         .stTabs [data-baseweb="tab-list"] {
             gap: 8px;
             background-color: transparent;
@@ -329,14 +377,14 @@ def get_header_html(subtitle=""):
     if subtitle:
         return f"""
         <div class="header-ribbon">
-            <h1>Hierarchy Validator</h1>
+            <h1>Vena Analytics Accelerator</h1>
             <p>{subtitle}</p>
         </div>
         """
     else:
         return """
         <div class="header-ribbon" style="padding: 20px;">
-            <h1 style="font-size: 28px;">Hierarchy Validator</h1>
+            <h1 style="font-size: 28px;">Vena Analytics Accelerator</h1>
         </div>
         """
 
