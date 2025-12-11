@@ -18,7 +18,7 @@ from shared.workflow import init_workflow_state, receive_workflow_data
 # Page config
 st.set_page_config(
     page_title="Analytics Accelerator",
-    page_icon="assets/logo.svg",  # Your custom logo!
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
