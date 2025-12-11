@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Hierarchy Validator - Excel Hierarchy Validation Tool
-Professional tool for converting and validating hierarchies
+Analytics Accelerator - Excel Analytics Tool
+Professional tools for FP&A teams
 """
 
 import streamlit as st
@@ -17,8 +17,8 @@ from shared.workflow import init_workflow_state, receive_workflow_data
 
 # Page config
 st.set_page_config(
-    page_title="Hierarchy Validator",
-    page_icon="🌳",
+    page_title="Analytics Accelerator",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -95,4 +95,4 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### Support")
-    st.markdown("Need help? Contact: support@hierarchyvalidator.com")
+    st.markdown("Need help? Contact: manu@venaaccelerator.com")

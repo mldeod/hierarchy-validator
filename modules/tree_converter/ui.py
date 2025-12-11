@@ -130,49 +130,20 @@ def render(workflow_receiver=None):
                 warnings = st.session_state.tree_results_warnings
                 
                 st.markdown("---")
-                st.markdown("#### Statistics")
                 
-                col1, col2, col3, col4, col5 = st.columns(5)
+                # KPI Badges - v8 Elegant Style
+                badges_html = f'''
+                <div style="text-align: center; margin: 20px 0;">
+                    <span class="summary-badge" style="background: #e3f2fd; color: #1565c0;">{stats['total_members']} Total Members</span>
+                    <span class="summary-badge" style="background: #e3f2fd; color: #1565c0;">{stats['max_depth']} Max Depth</span>
+                    <span class="summary-badge" style="background: #e3f2fd; color: #1565c0;">{stats['leaf_count']} Leaf Nodes</span>
+                    <span class="summary-badge badge-warning">{stats['warnings']} Warnings</span>
+                    <span class="summary-badge badge-error">{stats['errors']} Errors</span>
+                </div>
+                '''
+                st.markdown(badges_html, unsafe_allow_html=True)
                 
-                with col1:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h2 style="color: #6e6e73; margin: 0; font-weight: 400; text-align: center;">&nbsp;&nbsp;{stats['total_members']}&nbsp;&nbsp;</h2>
-                        <p style="margin: 5px 0 0 0; color: #6e6e73; text-align: center;">Total Members</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h2 style="color: #6e6e73; margin: 0; font-weight: 400; text-align: center;">&nbsp;&nbsp;{stats['max_depth']}&nbsp;&nbsp;</h2>
-                        <p style="margin: 5px 0 0 0; color: #6e6e73; text-align: center;">Max Depth</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col3:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h2 style="color: #6e6e73; margin: 0; font-weight: 400; text-align: center;">&nbsp;&nbsp;{stats['leaf_count']}&nbsp;&nbsp;</h2>
-                        <p style="margin: 5px 0 0 0; color: #6e6e73; text-align: center;">Leaf Nodes</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col4:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h2 style="color: #ff9500; margin: 0; font-weight: 400; text-align: center;">&nbsp;&nbsp;{stats['warnings']}&nbsp;&nbsp;</h2>
-                        <p style="margin: 5px 0 0 0; color: #ff9500; text-align: center;">Warnings</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col5:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h2 style="color: #ff3b30; margin: 0; font-weight: 400; text-align: center;">&nbsp;&nbsp;{stats['errors']}&nbsp;&nbsp;</h2>
-                        <p style="margin: 5px 0 0 0; color: #ff3b30; text-align: center;">Errors</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                st.markdown("---")
                 
                 # Display errors
                 if errors:
