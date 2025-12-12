@@ -368,5 +368,124 @@ def find_whitespace_issues(df):
     
     whitespace_issues.sort(key=lambda x: x['rows'][0])
     return whitespace_issues
+def find_whitespace_issues_detailed(df):
+    """
+    Find ALL whitespace issues GROUPED by unique text from BOTH columns
+    Returns list with one entry per unique problem text showing all affected rows
+    
+    Returns:
+        List of dictionaries with:
+        - row: First row number (for sorting)
+        - rows: List of all affected row numbers (comma-separated string)
+        - member_name: The actual text with whitespace
+        - parent_name: Which column(s) it appears in
+        - issue_type: Description of issue
+        - space_count: Number of problem spaces
+    """
+    import pandas as pd
+    from collections import defaultdict
+    
+    # Group by unique text (regardless of which column)
+    whitespace_groups = defaultdict(lambda: {
+        'rows': [],
+        'first_row': None,
+        'in_member': False,
+        'in_parent': False,
+        'issue_type': '',
+        'space_count': 0
+    })
+    
+    for idx, row in df.iterrows():
+        member = str(row['_member_name']) if pd.notna(row['_member_name']) else ''
+        parent = str(row['_parent_name']) if pd.notna(row['_parent_name']) else ''
+        
+        # Check member column
+        if member and member != 'nan':
+            issue_found = None
+            
+            # Check for leading spaces
+            if member[0] == ' ':
+                leading_count = len(member) - len(member.lstrip())
+                issue_found = ('Leading spaces', leading_count)
+            # Check for trailing spaces
+            elif member[-1] == ' ':
+                trailing_count = len(member) - len(member.rstrip())
+                issue_found = ('Trailing spaces', trailing_count)
+            # Check for double spaces (internal)
+            elif '  ' in member:
+                double_count = member.count('  ')
+                issue_found = ('Double space in middle', double_count)
+            # Check for tabs
+            elif '\t' in member:
+                tab_count = member.count('\t')
+                issue_found = ('Tab character', tab_count)
+            
+            if issue_found:
+                if whitespace_groups[member]['first_row'] is None:
+                    whitespace_groups[member]['first_row'] = idx
+                    whitespace_groups[member]['issue_type'] = issue_found[0]
+                    whitespace_groups[member]['space_count'] = issue_found[1]
+                
+                whitespace_groups[member]['rows'].append(idx)
+                whitespace_groups[member]['in_member'] = True
+        
+        # Check parent column
+        if parent and parent != 'nan':
+            issue_found = None
+            
+            # Check for leading spaces
+            if parent[0] == ' ':
+                leading_count = len(parent) - len(parent.lstrip())
+                issue_found = ('Leading spaces', leading_count)
+            # Check for trailing spaces
+            elif parent[-1] == ' ':
+                trailing_count = len(parent) - len(parent.rstrip())
+                issue_found = ('Trailing spaces', trailing_count)
+            # Check for double spaces (internal)
+            elif '  ' in parent:
+                double_count = parent.count('  ')
+                issue_found = ('Double space in middle', double_count)
+            # Check for tabs
+            elif '\t' in parent:
+                tab_count = parent.count('\t')
+                issue_found = ('Tab character', tab_count)
+            
+            if issue_found:
+                if whitespace_groups[parent]['first_row'] is None:
+                    whitespace_groups[parent]['first_row'] = idx
+                    whitespace_groups[parent]['issue_type'] = issue_found[0]
+                    whitespace_groups[parent]['space_count'] = issue_found[1]
+                
+                whitespace_groups[parent]['rows'].append(idx)
+                whitespace_groups[parent]['in_parent'] = True
+    
+    # Convert to list format
+    whitespace_details = []
+    
+    for text, data in whitespace_groups.items():
+        # Determine which column(s)
+        if data['in_member'] and data['in_parent']:
+            column_info = "Member & Parent"
+        elif data['in_member']:
+            column_info = "Member"
+        else:
+            column_info = "Parent"
+        
+        # Remove duplicates and sort rows
+        unique_rows = sorted(set(data['rows']))
+        
+        whitespace_details.append({
+            'row': data['first_row'] + 2,  # Excel row (first occurrence)
+            'rows': ', '.join(str(r + 2) for r in unique_rows),  # All rows as comma-separated string
+            'member_name': text,
+            'parent_name': column_info,  # Use this to show which column(s)
+            'issue_type': data['issue_type'],
+            'space_count': data['space_count']
+        })
+    
+    # Sort by first occurrence
+    whitespace_details.sort(key=lambda x: x['row'])
+    
+    return whitespace_details
 
 # Main app

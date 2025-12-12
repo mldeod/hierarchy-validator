@@ -12,7 +12,8 @@ from modules.hierarchy_validator.validation_engine import (
     find_orphans,
     find_parent_mismatches,
     find_duplicate_members,
-    find_whitespace_issues
+    find_whitespace_issues,
+    find_whitespace_issues_detailed
 )
 
 
@@ -505,89 +506,19 @@ def render(workflow_data=None):
                             }
                         )
                     
-                        # WHITESPACE VISUALIZATION TABLE - Modern & Beautiful
-                        if whitespace_issues:
-                            st.markdown("---")
-                            st.markdown("### Whitespace Visualization")
-                            st.markdown("*Background colors highlight whitespace issues in your data*")
-                        
-                            # Build a styled dataframe with all rows that have whitespace issues
-                            ws_display_rows = []
-                        
-                            # Collect all rows with whitespace issues
-                            ws_row_set = set()
-                            for ws in whitespace_issues:
-                                ws_row_set.update(ws['rows'])
-                        
-                            # Create display data
-                            for row_idx in sorted(ws_row_set):
-                                excel_row = row_idx + 2
-                                row_data = df.iloc[row_idx]
-                            
-                                member_name = str(row_data['_member_name'])
-                                parent_name = str(row_data['_parent_name'])
-                            
-                                ws_display_rows.append({
-                                    'Row': excel_row,
-                                    'Member Name': member_name,
-                                    'Parent Name': parent_name
-                                })
-                        
-                            if ws_display_rows:
-                                df_ws_viz = pd.DataFrame(ws_display_rows)
-                            
-                                # Function to detect whitespace type
-                                def get_ws_color(text):
-                                    """Return background color based on whitespace type"""
-                                    if not text or text == 'nan':
-                                        return ''
-                                
-                                    # Leading/trailing (CRITICAL - RED)
-                                    if text != text.strip():
-                                        return 'background-color: rgba(255, 100, 100, 0.25)'
-                                
-                                    # Double spaces (WARNING - AMBER)
-                                    if '  ' in text:
-                                        return 'background-color: rgba(255, 200, 80, 0.25)'
-                                
-                                    # Clean
-                                    return 'background-color: rgba(100, 255, 100, 0.10)'
-                            
-                                # Apply styling
-                                def style_ws_table(row):
-                                    member_style = get_ws_color(row['Member Name'])
-                                    parent_style = get_ws_color(row['Parent Name'])
-                                
-                                    return [
-                                        '',  # Row number - no style
-                                        member_style,
-                                        parent_style
-                                    ]
-                            
-                                styled_df = df_ws_viz.style.apply(style_ws_table, axis=1)
-                            
-                                # Add legend
-                                st.markdown("""
-                                <div style="display: flex; gap: 20px; margin: 10px 0; font-size: 13px;">
-                                    <div><span style="background-color: rgba(255,100,100,0.25); padding: 2px 8px; border-radius: 3px;">🔴 Leading/Trailing</span></div>
-                                    <div><span style="background-color: rgba(255,200,80,0.25); padding: 2px 8px; border-radius: 3px;">🟡 Double Space</span></div>
-                                    <div><span style="background-color: rgba(100,255,100,0.10); padding: 2px 8px; border-radius: 3px;">✅ Clean</span></div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            
-                                st.dataframe(
-                                    styled_df,
-                                    hide_index=True,
-                                    width='stretch',
-                                    height=400,
-                                    column_config={
-                                        'Row': st.column_config.NumberColumn('Row', width='small'),
-                                        'Member Name': st.column_config.TextColumn('Member Name', width='large'),
-                                        'Parent Name': st.column_config.TextColumn('Parent Name', width='large')
-                                    }
-                                )
-                
                     st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    # Whitespace visualization section
+                    from . import whitespace_visualizer
+                    
+                    whitespace_detailed = find_whitespace_issues_detailed(df)
+                    
+                    if whitespace_detailed:
+                        whitespace_visualizer.create_whitespace_section(
+                            whitespace_issues=whitespace_detailed,
+                            df=df,
+                            dark_mode=False
+                        )
         
         except Exception as e:
             st.error(f"Error: {str(e)}")
