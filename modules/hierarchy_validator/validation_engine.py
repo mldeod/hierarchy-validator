@@ -167,8 +167,11 @@ def count_children_fuzzy(df, member_name, max_edit_distance=2):
 
 def find_orphans(df, max_edit_distance=2):
     """
-    Find TRUE ORPHANS - parent references that don't exist as members at all
-    (not even with fuzzy matching)
+    Find parent references that don't exist as members
+    Returns: (orphan_errors, orphan_warnings)
+    
+    orphan_errors: Parents with whitespace/Vena issues (MUST fix)
+    orphan_warnings: Clean parents not in file (may exist in Vena)
     """
     # Get all member names
     member_names = set()
@@ -176,8 +179,9 @@ def find_orphans(df, max_edit_distance=2):
         member = str(row['_member_name'])
         member_names.add(member)
     
-    # Find orphans
-    orphans = defaultdict(lambda: {'rows': [], 'has_whitespace': False, 'is_vena_invalid': False})
+    # Find orphans - split into errors vs warnings
+    orphan_errors = defaultdict(lambda: {'rows': [], 'has_whitespace': False, 'is_vena_invalid': False})
+    orphan_warnings = defaultdict(lambda: {'rows': []})
     
     for idx, row in df.iterrows():
         parent_ref = row['_parent_name']
@@ -197,24 +201,28 @@ def find_orphans(df, max_edit_distance=2):
                     break
             
             if not has_fuzzy_match:
-                # TRUE ORPHAN - no member exists at all!
-                orphans[parent_str]['rows'].append(idx)
+                # Parent doesn't exist in file at all
+                # Check if it has whitespace/Vena issues (ERROR) or is clean (WARNING)
                 
-                # Check if orphan has whitespace issues
-                # Vena-invalid: leading/trailing/tabs
                 has_leading = parent_str.lstrip() != parent_str
                 has_trailing = parent_str.rstrip() != parent_str
                 has_tabs = '\t' in parent_str
                 has_double_spaces = '  ' in parent_str
                 
-                if has_leading or has_trailing or has_tabs:
-                    orphans[parent_str]['has_whitespace'] = True
-                    orphans[parent_str]['is_vena_invalid'] = True
-                elif has_double_spaces:
-                    orphans[parent_str]['has_whitespace'] = True
-                    orphans[parent_str]['is_vena_invalid'] = False
+                if has_leading or has_trailing or has_tabs or has_double_spaces:
+                    # ERROR: Has whitespace issues that will cause Vena problems
+                    orphan_errors[parent_str]['rows'].append(idx)
+                    orphan_errors[parent_str]['has_whitespace'] = True
+                    
+                    if has_leading or has_trailing or has_tabs:
+                        orphan_errors[parent_str]['is_vena_invalid'] = True
+                    else:
+                        orphan_errors[parent_str]['is_vena_invalid'] = False
+                else:
+                    # WARNING: Clean reference, may exist in Vena already
+                    orphan_warnings[parent_str]['rows'].append(idx)
     
-    return orphans
+    return orphan_errors, orphan_warnings
 
 
 def find_parent_mismatches(df, max_edit_distance=2):
@@ -253,21 +261,29 @@ def find_parent_mismatches(df, max_edit_distance=2):
                     # Classify the difference
                     category, explanation, is_whitespace, is_vena_invalid = classify_difference(best_match, parent_str)
                     
+                    # SIMPLE RULE: If difference is ONLY whitespace, skip it
+                    # Whitespace issues are handled separately by find_whitespace_issues
+                    # Only include mismatches that have character/typo differences
+                    if is_whitespace:
+                        processed_parents.add(parent_str)
+                        continue
+                    
                     children = []
                     for child_idx, child_row in df.iterrows():
                         child_parent = str(child_row['_parent_name']) if pd.notna(child_row['_parent_name']) else None
-                        if child_parent:
+                        # CRITICAL FIX: Only include children that have the EXACT parent_str we're processing
+                        # Not just any parent close to best_match!
+                        if child_parent == parent_str:
                             child_edit_dist = distance.Levenshtein.distance(best_match, child_parent)
-                            if 1 <= child_edit_dist <= max_edit_distance:
-                                similarity = fuzz.ratio(best_match, child_parent)
-                                children.append({
-                                    'row': child_idx,
-                                    'member': str(child_row['_member_name']),
-                                    'alias': child_row.get('_member_alias', '') if '_member_alias' in df.columns else '',
-                                    'parent_name': child_parent,
-                                    'edit_distance': child_edit_dist,
-                                    'similarity': similarity
-                                })
+                            similarity = fuzz.ratio(best_match, child_parent)
+                            children.append({
+                                'row': child_idx,
+                                'member': str(child_row['_member_name']),
+                                'alias': child_row.get('_member_alias', '') if '_member_alias' in df.columns else '',
+                                'parent_name': child_parent,
+                                'edit_distance': child_edit_dist,
+                                'similarity': similarity
+                            })
                     
                     if children:
                         mismatches.append({
@@ -319,9 +335,9 @@ def find_duplicate_members(df):
     return duplicate_errors, duplicate_warnings
 
 def find_whitespace_issues(df):
-    """Find internal whitespace issues (double spaces) grouped by distinct text
+    """Find ALL whitespace issues for fixing (double spaces, leading, trailing, tabs)
     
-    Note: Leading/trailing whitespace and tabs are handled by Vena Restrictions
+    This is used for the fixable issues section - we want to catch EVERYTHING
     """
     grouped_issues = defaultdict(lambda: {'rows': [], 'alias_example': '', 'issues': []})
     
@@ -330,11 +346,16 @@ def find_whitespace_issues(df):
         parent = str(row['_parent_name']) if pd.notna(row['_parent_name']) else None
         member_alias = row.get('_member_alias', '') if '_member_alias' in df.columns else ''
         
-        # Check member name - ONLY internal whitespace issues
-        # (leading/trailing/tabs now handled by Vena Restrictions)
+        # Check member name - ALL whitespace issues
         member_issues = []
         if '  ' in member:
             member_issues.append(f"{member.count('  ')} double space")
+        if member.startswith(' '):
+            member_issues.append("leading space")
+        if member.endswith(' '):
+            member_issues.append("trailing space")
+        if '\t' in member:
+            member_issues.append("tab character")
         
         if member_issues:
             key = ('_member_name', member)
@@ -342,12 +363,17 @@ def find_whitespace_issues(df):
             grouped_issues[key]['alias_example'] = member_alias if pd.notna(member_alias) else ''
             grouped_issues[key]['issues'] = member_issues
         
-        # Check parent name - ONLY internal whitespace issues
-        # (leading/trailing/tabs now handled by Vena Restrictions)
+        # Check parent name - ALL whitespace issues
         if parent:
             parent_issues = []
             if '  ' in parent:
                 parent_issues.append(f"{parent.count('  ')} double space")
+            if parent.startswith(' '):
+                parent_issues.append("leading space")
+            if parent.endswith(' '):
+                parent_issues.append("trailing space")
+            if '\t' in parent:
+                parent_issues.append("tab character")
             
             if parent_issues:
                 key = ('_parent_name', parent)
@@ -360,7 +386,7 @@ def find_whitespace_issues(df):
         whitespace_issues.append({
             'column': column,
             'text': text,
-            'highlighted': text,  # No middle dots - just use original text
+            'highlighted': text,
             'rows': sorted(data['rows']),
             'alias_example': data['alias_example'],
             'issues': data['issues']
