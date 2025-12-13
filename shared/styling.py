@@ -1,10 +1,18 @@
 """
-Analytics Accelerator - Shared Styling
-Unified design system across all modules
+Global styling for Analytics Accelerator
+Charcoal theme with ultra-thin hover effects
 """
 
+import streamlit as st
+
+
+def apply_global_styles():
+    """Apply global CSS styles to the application"""
+    st.markdown(get_unified_css(), unsafe_allow_html=True)
+
+
 def get_unified_css():
-    """Return the unified CSS for all modules"""
+    """Return the unified CSS for all modules - CHARCOAL EDITION"""
     return """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
@@ -16,6 +24,30 @@ def get_unified_css():
         
         @media (prefers-color-scheme: dark) {
             .main { background: #1e1e1e; }
+        }
+        
+        /* ========================================
+           CHARCOAL ULTRA-THIN HOVER ON INPUTS
+           ======================================== */
+        
+        /* Hover effect - 0.5px charcoal hairline */
+        div.stTextInput:hover > div > div > input {
+            border: 0.5px solid #374151 !important;
+            transition: border 0.2s ease !important;
+        }
+        
+        div[data-baseweb="input"]:hover {
+            border: 0.5px solid #374151 !important;
+            border-width: 0.5px !important;
+        }
+        
+        /* Focus effect - matching charcoal */
+        div.stTextInput > div > div > input:focus {
+            border: 0.5px solid #374151 !important;
+        }
+        
+        div[data-baseweb="input"]:focus {
+            border: 0.5px solid #374151 !important;
         }
         
         /* Header */
@@ -87,7 +119,7 @@ def get_unified_css():
             box-shadow: 0 4px 12px rgba(0,81,213,0.3);
         }
         
-        /* KPI Pills - v8 Elegant Style */
+        /* KPI Pills */
         .kpi-container {
             display: flex;
             gap: 8px;
@@ -96,7 +128,7 @@ def get_unified_css():
             flex-wrap: wrap;
         }
         
-        /* Summary badges from v8 - smaller, punchier */
+        /* Summary badges */
         .summary-badge {
             display: inline-block;
             padding: 8px 16px;
@@ -125,42 +157,6 @@ def get_unified_css():
             .badge-error { background: #3d1a1f; color: #ff8a80; }
             .badge-warning { background: #3d2f1a; color: #ffb74d; }
             .badge-success { background: #1a3d2a; color: #7ddc8f; }
-        }
-        
-        /* Text inputs - NUCLEAR OPTION */
-        input[type="text"],
-        input[type="email"],
-        input[type="number"],
-        input[type="password"],
-        textarea,
-        .stTextInput input,
-        .stTextInput textarea,
-        div[data-baseweb="input"] input {
-            transition: all 0.2s ease !important;
-        }
-        
-        input[type="text"]:hover,
-        input[type="email"]:hover,
-        input[type="number"]:hover,
-        input[type="password"]:hover,
-        textarea:hover,
-        .stTextInput input:hover,
-        .stTextInput textarea:hover,
-        div[data-baseweb="input"] input:hover {
-            border-color: #42a5f5 !important;
-            box-shadow: 0 0 0 1px #42a5f5 !important;
-        }
-        
-        input[type="text"]:focus,
-        input[type="email"]:focus,
-        input[type="number"]:focus,
-        input[type="password"]:focus,
-        textarea:focus,
-        .stTextInput input:focus,
-        .stTextInput textarea:focus,
-        div[data-baseweb="input"] input:focus {
-            border-color: #1565c0 !important;
-            box-shadow: 0 0 0 2px rgba(66, 165, 245, 0.3) !important;
         }
         
         /* Message boxes */
@@ -285,7 +281,7 @@ def get_unified_css():
             }
         }
         
-        /* Tabs styling - Apple elegant with shape */
+        /* Tabs styling */
         .stTabs [data-baseweb="tab-list"] {
             gap: 8px;
             background-color: transparent;
@@ -361,8 +357,14 @@ def get_unified_css():
                 border: 2px dashed #48484a;
             }
         }
+        
+        /* Expander styling */
+        .streamlit-expanderHeader {
+            font-weight: 600;
+        }
     </style>
     """
+
 
 def get_header_html(subtitle=""):
     """Return the header HTML"""
@@ -379,6 +381,7 @@ def get_header_html(subtitle=""):
             <h1 style="font-size: 28px;">Analytics Accelerator</h1>
         </div>
         """
+
 
 def get_footer_html():
     """Return empty footer"""
