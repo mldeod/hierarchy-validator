@@ -27,19 +27,17 @@ def render(workflow_receiver=None):
     from modules.tree_converter.engine import TreeParser
     
     st.markdown("### Convert Excel Tree to Parent-Child Format")
+
+    with st.expander("How does conversion work?", expanded=False):
+        st.markdown("""
+        Converts visual Excel hierarchies into parent-child format:
     
-    st.markdown("""
-    <div class="info-box">
-        <p><strong>1. Enter your Vena dimension name</strong> (e.g., Account, Cost Center, Products)</p>
-        <p><strong>2. Upload your Excel hierarchy tree</strong> with:</p>
-        <ul>
-            <li><strong>Columns A-J (1-10):</strong> Hierarchy levels (position = level)</li>
-            <li><strong>Column K (11):</strong> Member aliases (optional)</li>
-            <li><strong>Column L (12):</strong> Operators: + (add), - (subtract), ~ (ignore) - defaults to + if blank</li>
-        </ul>
-        <p><strong>The converter will:</strong> Parse the tree structure, validate relationships, and export a clean parent-child table ready for Vena import.</p>
-    </div>
-    """, unsafe_allow_html=True)
+        - Columns A - J ➞ Hierarchy levels (position determines depth)
+        - Column K ➞ Member aliases (optional)
+        - Column L ➞ Operators (+, -, ~)
+    
+        **Output:** Clean 6-column table ready for platform import with validated relationships.
+        """)
     
     # Initialize module-specific session state
     if 'tree_results_df' not in st.session_state:
@@ -56,14 +54,13 @@ def render(workflow_receiver=None):
         st.session_state.tree_file_uploader_key = 0
     
     # Configuration
-    st.markdown("---")
-    st.markdown("#### Vena Configuration")
+    st.markdown("#### Configuration")
     
     dimension_name = st.text_input(
         "Dimension Name (e.g., Account, Cost Center, Products)",
-        value="Account",
-        help="Enter your Vena dimension name - this will be used in the output file",
-        placeholder="Account",
+        value="",  # Blank - no pre-filled value
+        help="Enter your dimension name - this will be used in the output file",
+        placeholder="",  # Blank - no placeholder (label + tooltip + info box provide guidance)
         key="tree_dim_name"
     )
     
@@ -71,19 +68,16 @@ def render(workflow_receiver=None):
         st.warning("Please enter a dimension name")
     
     st.markdown("""
-    <div class="tip-box">
-        <small>
-        • Operators default to <code>+</code> (additive rollup) if Column L is blank<br>
-        • Use <code>-</code> for contra accounts (Returns, Discounts)<br>
-        • Use <code>~</code> to ignore in rollup
-        </small>
+    <div class="config-info-box">
+        • Operators default to + (additive rollup) if Column L is blank<br>
+        • Use - for contra accounts (Returns, Discounts)<br>
+        • Use ~ to ignore in rollup
     </div>
     """, unsafe_allow_html=True)
     
     operator_default = "+"
     
     # File upload
-    st.markdown("---")
     uploaded_file = st.file_uploader(
         "Upload Excel Tree File",
         type=['xlsx', 'xls'],
@@ -131,12 +125,14 @@ def render(workflow_receiver=None):
                 
                 st.markdown("---")
                 
-                # KPI Badges - v8 Elegant Style
+                # Statistics Pills - Phase 2 Iteration 1 - OPTION D
+                # Styling: shared/styling.py (DRY compliance)
+                # Distribution: space-evenly for balanced layout
                 badges_html = f'''
-                <div style="text-align: center; margin: 20px 0;">
-                    <span class="summary-badge" style="background: #e3f2fd; color: #1565c0;">{stats['total_members']} Total Members</span>
-                    <span class="summary-badge" style="background: #e3f2fd; color: #1565c0;">{stats['max_depth']} Max Depth</span>
-                    <span class="summary-badge" style="background: #e3f2fd; color: #1565c0;">{stats['leaf_count']} Leaf Nodes</span>
+                <div style="display: flex; justify-content: space-evenly; margin: 20px 0;">
+                    <span class="summary-badge">{stats['total_members']} Total Members</span>
+                    <span class="summary-badge">{stats['max_depth']} Max Depth</span>
+                    <span class="summary-badge">{stats['leaf_count']} Leaf Nodes</span>
                     <span class="summary-badge badge-warning">{stats['warnings']} Warnings</span>
                     <span class="summary-badge badge-error">{stats['errors']} Errors</span>
                 </div>
@@ -147,7 +143,6 @@ def render(workflow_receiver=None):
                 
                 # Display errors
                 if errors:
-                    st.markdown("---")
                     st.markdown("#### Errors Found")
                     for err in errors:
                         st.markdown(f"""
@@ -160,7 +155,6 @@ def render(workflow_receiver=None):
                 
                 # Display warnings
                 if warnings:
-                    st.markdown("---")
                     st.markdown("#### Warnings")
                     for warn in warnings:
                         rows_str = ', '.join(map(str, warn['rows'])) if warn['rows'] else 'N/A'
@@ -190,17 +184,14 @@ def render(workflow_receiver=None):
                         </div>
                         """, unsafe_allow_html=True)
                     
-                    st.markdown("---")
                     st.markdown("#### Tree Visualization")
                     st.code(st.session_state.tree_results_vis, language=None)
                     
-                    st.markdown("---")
-                    st.markdown("#### Vena Hierarchy Table (6-Column Format)")
+                    st.markdown("#### Hierarchy Table (6-Column Format)")
                     
                     df = st.session_state.tree_results_df
                     st.dataframe(df, width="stretch", height=400)
                     
-                    st.markdown("---")
                     st.markdown("#### Download or Validate")
                     
                     col1, col2, col3 = st.columns(3)
@@ -228,7 +219,7 @@ def render(workflow_receiver=None):
                         st.download_button(
                             label="Download Excel",
                             data=output_excel,
-                            file_name=f"vena_hierarchy_{timestamp}.xlsx",
+                            file_name=f"hierarchy_{timestamp}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             key="tree_download_excel"
                         )
@@ -239,7 +230,7 @@ def render(workflow_receiver=None):
                         st.download_button(
                             label="Download CSV",
                             data=csv,
-                            file_name=f"vena_hierarchy_{timestamp}.csv",
+                            file_name=f"hierarchy_{timestamp}.csv",
                             mime="text/csv",
                             key="tree_download_csv"
                         )
@@ -265,29 +256,25 @@ def render(workflow_receiver=None):
     
     else:
         # Show template download when no file
-        st.markdown("---")
         st.markdown("#### Need a Template?")
         st.markdown("""
-        <div class="info-box">
-            <p>Download our sample template to see the expected format for Excel tree hierarchies:</p>
+        <div class="template-info-box">
+            Download our sample template to see the expected format for Excel tree hierarchies:
         </div>
         """, unsafe_allow_html=True)
         
         try:
-            # Get path to project root (go up from modules/tree_converter/ui.py to project root)
-            current_file = os.path.abspath(__file__)
-            tree_converter_dir = os.path.dirname(current_file)  # modules/tree_converter
-            modules_dir = os.path.dirname(tree_converter_dir)    # modules
-            project_root = os.path.dirname(modules_dir)          # project root
-            template_path = os.path.join(project_root, 'assets', 'templates', 'sample_hierarchy_tree.xlsx')
+            # Get template from this module's templates folder
+            module_dir = os.path.dirname(os.path.abspath(__file__))
+            template_path = os.path.join(module_dir, 'templates', 'sample_template.xlsx')
             
             with open(template_path, 'rb') as f:
                 st.download_button(
                     label="Download Sample Template",
                     data=f,
-                    file_name="sample_hierarchy_tree.xlsx",
+                    file_name="tree_converter_sample_template.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    width="stretch",
+                    use_container_width=True,
                     key="tree_template_download"
                 )
         except:

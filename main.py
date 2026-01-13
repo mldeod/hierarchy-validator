@@ -15,10 +15,10 @@ from config.modules_config import get_enabled_modules, get_module_tabs, AVAILABL
 from shared.styling import get_unified_css, get_header_html, get_footer_html
 from shared.workflow import init_workflow_state, receive_workflow_data
 
-# Page config
+# Page config with custom logo
 st.set_page_config(
     page_title="Analytics Accelerator",
-    page_icon="📊",
+    page_icon="assets/logo.png",  # Custom concentric circles logo
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -54,7 +54,7 @@ for idx, (tab_name, module_key) in enumerate(module_tabs_data):
         if has_data:
             st.markdown(f"""
             <div class="success-box">
-                <h3>✓ Data Received from {AVAILABLE_MODULES[source]['name']}</h3>
+                <h3>Data Received from {AVAILABLE_MODULES[source]['name']}</h3>
                 <p>Your data has been automatically loaded and is ready to process.</p>
             </div>
             """, unsafe_allow_html=True)
@@ -82,17 +82,13 @@ for idx, (tab_name, module_key) in enumerate(module_tabs_data):
 # Footer
 st.markdown(get_footer_html(), unsafe_allow_html=True)
 
-# Sidebar - Module info (collapsed by default)
+# Sidebar - Module info only (no support section)
 with st.sidebar:
     st.markdown("### Enabled Modules")
     for module_key in enabled_modules:
         module = AVAILABLE_MODULES[module_key]
         st.markdown(f"""
-        **{module['icon']} {module['name']}**  
+        **{module['name']}**  
         {module['description']}  
         *Version {module['version']}*
         """)
-    
-    st.markdown("---")
-    st.markdown("### Support")
-    st.markdown("Need help? Contact: manu@venaaccelerator.com")

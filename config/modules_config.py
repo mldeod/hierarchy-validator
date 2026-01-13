@@ -8,7 +8,6 @@ AVAILABLE_MODULES = {
     'tree_converter': {
         'name': 'Tree Converter',
         'description': 'Convert Excel tree hierarchies to parent-child format',
-        'icon': '🌳',
         'version': '1.0',
         'price': 5000,
         'enabled': True  # Set per client
@@ -16,7 +15,6 @@ AVAILABLE_MODULES = {
     'hierarchy_validator': {
         'name': 'Hierarchy Validator',
         'description': 'Validate parent-child relationships and Vena restrictions',
-        'icon': '✓',
         'version': '1.0',
         'price': 5000,
         'enabled': True  # Fixed - all functions restored
@@ -24,7 +22,6 @@ AVAILABLE_MODULES = {
     'data_quality_checker': {
         'name': 'Data Quality Checker',
         'description': 'Customizable CSV/Excel data validation',
-        'icon': '🔍',
         'version': '1.0',
         'price': 8000,
         'enabled': False  # Disabled by default
@@ -32,7 +29,6 @@ AVAILABLE_MODULES = {
     'allocation_engine': {
         'name': 'Allocation Engine',
         'description': 'Multi-level cost allocation waterfall',
-        'icon': '📊',
         'version': '0.5',
         'price': 15000,
         'enabled': False  # Coming soon

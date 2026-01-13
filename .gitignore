@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.pyc
+.DS_Store
+temp_*.xlsx
+temp_*.csv
+archive/
+templates/
+.streamlit/secrets.toml
+*_sample.csv

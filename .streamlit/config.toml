@@ -1,0 +1,14 @@
+[theme]
+# Base theme
+base = "light"
+
+# PRIMARY COLOR - Charcoal (controls focus borders)
+primaryColor = "#374151"
+
+# Optional: Other theme colors
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
+
+# Show borders on unfocused widgets (optional)
+showWidgetBorder = false

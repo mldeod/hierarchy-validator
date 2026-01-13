@@ -1,12 +1,26 @@
 """
-Fixable Issues Visualizer - FIXED deduplication logic
-Apple-style: Minimal, visual, intelligent
+Fixable Issues Visualizer V2 - Diagnostic Command Center
+Phase 2 Iteration 3 - Auditor-Approved Hybrid Design
+
+Design Philosophy:
+- Progressive Disclosure: Pills → Table → Detail
+- Lightbox Effect: Dark UI → White Inspection Zones  
+- Diagnostic Command Center: Empowering users to fix systematically
+
+Approved by: The Auditor (December 30, 2025)
+Built by: Manu + Claude
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from io import BytesIO
+from shared.styling import DesignTokens  # For detail border token governance
 
+
+# ============================================================================
+# UTILITY FUNCTIONS (Preserved from V1 - These are brilliant!)
+# ============================================================================
 
 def has_whitespace_issues(text):
     """Check if text has any whitespace problems"""
@@ -38,6 +52,8 @@ def highlight_whitespace_issues(text):
     """
     Highlight ONLY problem whitespace (leading/trailing/tabs/double)
     Returns: html_with_highlights showing the problem
+    
+    PRESERVED FROM V1 - This logic is brilliant!
     """
     result = []
     
@@ -87,373 +103,417 @@ def highlight_whitespace_issues(text):
     
     return ''.join(result)
 
+# ============================================================================
 
-def highlight_differences(correct_text, problem_text):
-    """
-    Clean elegant highlighting - shows ONLY the problematic characters:
-    - Extra spaces (2nd, 3rd... in consecutive spaces) → Red dot AFTER the correct space
-    - Tabs, leading, trailing → Red markers (NO arrows, just dots)
-    - Missing characters → Orange dot + annotation at end
-    - Wrong characters → Orange background
-    
-    Example: "revenue  -" shows as "revenue ·-" (space, then red dot, then dash)
-    """
-    from rapidfuzz import distance
-    
-    result = []
-    missing_chars = []
-    
-    # Get edit operations for typos/missing chars
-    ops = distance.Levenshtein.editops(correct_text, problem_text)
-    ops_list = [(op.tag, op.src_pos, op.dest_pos) for op in ops]
-    
-    # Build separate maps for whitespace vs character issues
-    char_issues = {}  # dest_pos -> issue type (non-whitespace only)
-    missing_chars = []  # (position, char) for missing non-whitespace
-    missing_whitespace = []  # (position, char) for missing whitespace
-    
-    for op_type, src_pos, dest_pos in ops_list:
-        if op_type == 'delete':
-            # Missing character - check if it's whitespace or not
-            missing_char = correct_text[src_pos]
-            if missing_char in ' \t\n':
-                # Missing whitespace - handle as RED
-                missing_whitespace.append((dest_pos, missing_char))
-            else:
-                # Missing regular character - handle as ORANGE
-                missing_chars.append((dest_pos, missing_char))
-        elif op_type == 'replace':
-            # Check if it's a character replacement (not whitespace)
-            problem_char = problem_text[dest_pos] if dest_pos < len(problem_text) else ' '
-            correct_char = correct_text[src_pos] if src_pos < len(correct_text) else ' '
-            
-            # Only mark as char issue if NEITHER is whitespace
-            if problem_char not in ' \t\n' and correct_char not in ' \t\n':
-                char_issues[dest_pos] = 'replace'
-            # If either is whitespace, it will be caught by direct detection below
-        elif op_type == 'insert':
-            # Extra character - mark as char issue ONLY if it's NOT whitespace
-            problem_char = problem_text[dest_pos] if dest_pos < len(problem_text) else ' '
-            if problem_char not in ' \t\n':
-                char_issues[dest_pos] = 'insert'
-            # If it IS whitespace, we'll handle it in the direct detection below
-    
-    # Now walk through problem_text and detect patterns DIRECTLY
-    i = 0
-    missing_idx = 0
-    missing_ws_idx = 0
-    
-    while i < len(problem_text):
-        char = problem_text[i]
-        
-        # Insert missing WHITESPACE at the right position (RED)
-        while missing_ws_idx < len(missing_whitespace) and missing_whitespace[missing_ws_idx][0] == i:
-            missing_ws_char = missing_whitespace[missing_ws_idx][1]
-            if missing_ws_char == '\t':
-                result.append('<span style="background-color: #ffebee; padding: 2px 4px; border-radius: 2px; font-weight: 600;">→TAB</span>')
-            else:
-                result.append('<span style="background-color: #ffebee; padding: 2px 4px; border-radius: 2px; font-weight: 600;">·</span>')
-            missing_ws_idx += 1
-        
-        # Insert missing CHARACTERS at the right position (ORANGE)
-        while missing_idx < len(missing_chars) and missing_chars[missing_idx][0] == i:
-            missing_char = missing_chars[missing_idx][1]
-            result.append('<span style="background-color: #fff3e0; padding: 2px 4px; border-radius: 2px; font-weight: 600;">·</span>')
-            missing_idx += 1
-        
-        # Check for whitespace issues - ALWAYS check these BEFORE char_issues
-        if char == ' ':
-            # Leading space - RED (not orange!)
-            if i == 0:
-                result.append('<span style="background-color: #ffebee; padding: 2px 4px; border-radius: 2px; font-weight: 600;">·</span>')
-                i += 1
-            # Trailing space - RED, just dot (no arrow)
-            elif i == len(problem_text) - 1:
-                result.append('<span style="background-color: #ffebee; padding: 2px 4px; border-radius: 2px; font-weight: 600;">·</span>')
-                i += 1
-            # Multiple consecutive spaces
-            elif i + 1 < len(problem_text) and problem_text[i + 1] == ' ':
-                # Count consecutive spaces
-                space_count = 0
-                j = i
-                while j < len(problem_text) and problem_text[j] == ' ':
-                    space_count += 1
-                    j += 1
-                
-                # Show FIRST space as normal (it's correct - the first space bar hit)
-                result.append(' ')
-                
-                # Show REMAINING spaces as red dots (they're extra - the 2nd, 3rd... space bar hits)
-                for _ in range(space_count - 1):
-                    result.append('<span style="background-color: #ffebee; padding: 2px 4px; border-radius: 2px; font-weight: 600;">·</span>')
-                
-                i = j
-            else:
-                # Normal single space
-                result.append(char)
-                i += 1
-        elif char == '\t':
-            # Tab - RED
-            result.append('<span style="background-color: #ffebee; padding: 2px 4px; border-radius: 2px; font-weight: 600;">→TAB</span>')
-            i += 1
-        # Check for character issues (typos) - only if NOT already handled as whitespace
-        elif i in char_issues:
-            issue_type = char_issues[i]
-            if issue_type in ['replace', 'insert']:
-                result.append(f'<span style="background-color: #fff3e0; padding: 2px 4px; border-radius: 2px; font-weight: 600;">{char}</span>')
-            i += 1
-        else:
-            # Normal character
-            result.append(char)
-            i += 1
-    
-    # Insert any remaining missing whitespace at the end (RED)
-    while missing_ws_idx < len(missing_whitespace):
-        missing_ws_char = missing_whitespace[missing_ws_idx][1]
-        if missing_ws_char == '\t':
-            result.append('<span style="background-color: #ffebee; padding: 2px 4px; border-radius: 2px; font-weight: 600;">→TAB</span>')
-        else:
-            result.append('<span style="background-color: #ffebee; padding: 2px 4px; border-radius: 2px; font-weight: 600;">·</span>')
-        missing_ws_idx += 1
-    
-    # Insert any remaining missing characters at the end (ORANGE)
-    while missing_idx < len(missing_chars):
-        missing_char = missing_chars[missing_idx][1]
-        result.append('<span style="background-color: #fff3e0; padding: 2px 4px; border-radius: 2px; font-weight: 600;">·</span>')
-        missing_idx += 1
-    
-    # Add missing character annotation at THE END (only for non-whitespace)
-    if missing_chars:
-        missing_str = ''.join([char for pos, char in missing_chars])
-        result.append(f' <span style="color: #EA580C; font-size: 10px; font-weight: 600;">[missing: {missing_str}]</span>')
-    
-    return ''.join(result)
+# ============================================================================
+# TEXT DIFF ENGINE - Beautiful Mille-Feuille Architecture (V3.0.0)
+# ============================================================================
+# Import the industrial-grade modular diff engine
+from .text_diff_engine import highlight_differences
 
-
-def create_fixable_issues_section(whitespace_issues, parent_mismatches, df):
+def categorize_issues(issues_list):
     """
-    CLEAN REBUILD - Proper deduplication and grouping
+    Count individual variations (sub-issues), not groups.
     
-    Step 1: Collect all problem_text data (from both sources)
-    Step 2: Deduplicate by problem_text (merge rows)
-    Step 3: Group by normalized correct_text
-    Step 4: Render
+    NEW LOGIC: We resolve issues individually (each variation is separate).
+    We present them grouped by member name (for readability).
+    
+    Categories:
+    - whitespace: Count of whitespace variations
+    - typo: Count of typo variations (parent mismatches)
+    
+    NO "both" category - we count each variation type separately.
     """
+    whitespace_variations = []
+    typo_variations = []
     
-    # Helper function for grouping key
-    def get_grouping_key(text):
-        """Fully normalized: lowercase + clean whitespace"""
-        return text.strip().replace('\t', ' ').replace('  ', ' ').lower()
-    
-    # STEP 1: Collect ALL problem texts with their metadata
-    # Key = problem_text, Value = {correct_text, rows, source}
-    all_problems = {}
-    
-    # Collect from parent_mismatches
-    if parent_mismatches:
-        for mismatch in parent_mismatches:
-            problem_text = mismatch['parent_ref']
-            correct_text = mismatch['correct_member']
-            
-            if problem_text not in all_problems:
-                all_problems[problem_text] = {
-                    'correct_text': correct_text,
-                    'rows': set(),
-                    'has_typo': has_character_typo(correct_text, problem_text)
-                }
-            
-            # Add rows
-            for child in mismatch['affected_children']:
-                all_problems[problem_text]['rows'].add(child['row'])
-    
-    # Collect from whitespace_issues
-    if whitespace_issues:
-        for ws in whitespace_issues:
-            problem_text = ws.get('text', '')
-            correct_text = problem_text.strip().replace('\t', ' ').replace('  ', ' ')
-            
-            if problem_text not in all_problems:
-                all_problems[problem_text] = {
-                    'correct_text': correct_text,
-                    'rows': set(),
-                    'has_typo': False
-                }
-            
-            # Add rows (MERGE if already exists from parent_mismatches)
-            for row in ws.get('rows', []):
-                all_problems[problem_text]['rows'].add(row)
-    
-    # STEP 2: Group by normalized correct_text
-    fix_groups = {}
-    
-    for problem_text, problem_data in all_problems.items():
-        correct_text = problem_data['correct_text']
-        grouping_key = get_grouping_key(correct_text)
-        
-        if grouping_key not in fix_groups:
-            fix_groups[grouping_key] = {
-                'correct_text': correct_text,
-                'variations': [],  # List of unique problem texts
-                'all_rows': set()
-            }
-        
-        # Add this variation
-        fix_groups[grouping_key]['variations'].append({
-            'problem_text': problem_text,
-            'rows': sorted(list(problem_data['rows'])),
-            'has_typo': problem_data['has_typo']
-        })
-        
-        # Add rows to total
-        fix_groups[grouping_key]['all_rows'].update(problem_data['rows'])
-    
-    # STEP 3: Convert to list for rendering
-    issues_list = []
-    for fix_data in fix_groups.values():
-        variations = fix_data['variations']
-        
-        # STEP 3.5: Smart row assignment - each row goes to its MOST SPECIFIC variation
-        # Build a map: row -> best variation for that row
-        row_to_variation = {}
-        
-        for var_idx, variation in enumerate(variations):
-            problem_text = variation['problem_text']
-            
-            # Count how many issues this variation has
-            issue_count = 0
-            # Check for typos (missing chars, wrong chars)
+    for issue in issues_list:
+        for variation in issue['variations']:
+            # Each variation is counted individually
             if variation.get('has_typo', False):
-                issue_count += 1
-            # Check for whitespace issues
-            if '  ' in problem_text or problem_text.startswith(' ') or problem_text.endswith(' ') or '\t' in problem_text:
-                issue_count += 1
-            
-            # Assign each row to this variation if it's more specific
-            for row in variation['rows']:
-                if row not in row_to_variation:
-                    row_to_variation[row] = {'var_idx': var_idx, 'issue_count': issue_count}
-                elif issue_count > row_to_variation[row]['issue_count']:
-                    # This variation has MORE issues, so it's more specific - take the row
-                    row_to_variation[row] = {'var_idx': var_idx, 'issue_count': issue_count}
+                typo_variations.append({
+                    'issue': issue,
+                    'variation': variation
+                })
+            else:
+                whitespace_variations.append({
+                    'issue': issue,
+                    'variation': variation
+                })
+    
+    return {
+        'whitespace': whitespace_variations,
+        'typo': typo_variations
+    }
+
+
+def prepare_table_data(issues_list, categorized):
+    """
+    Convert issues into flat table rows for GDG display
+    
+    Columns (Auditor-approved):
+    - Type: Whitespace / Typo / Both
+    - Problem: Full text (WRAPPED, not truncated!)
+    - Fix: Full text (WRAPPED)
+    - Rows: Smart formatting
+    
+    Auditor's Decision: Removed "Variations" column - it's technical detail
+    that belongs in the Detail Box, not the scannable overview table.
+    """
+    table_rows = []
+    
+    for issue in issues_list:
+        # Determine type by checking variations
+        has_whitespace_var = any(not v.get('has_typo', False) for v in issue['variations'])
+        has_typo_var = any(v.get('has_typo', False) for v in issue['variations'])
         
-        # Now rebuild variations with only their assigned rows
-        for var_idx, variation in enumerate(variations):
-            assigned_rows = [row for row, assignment in row_to_variation.items() 
-                           if assignment['var_idx'] == var_idx]
-            variation['rows'] = sorted(assigned_rows)
+        if has_whitespace_var and has_typo_var:
+            issue_type = 'Mixed'  # This member has both types of sub-issues
+        elif has_typo_var:
+            issue_type = 'Typo'
+        else:
+            issue_type = 'Whitespace'
         
-        # Sort variations by first row number (after reassignment)
-        variations = sorted(variations, key=lambda x: x['rows'][0] if x['rows'] else float('inf'))
+        # Get first variation's problem text (NO TRUNCATION - Auditor approved wrapping!)
+        problem_text = issue['variations'][0]['problem_text']
         
-        issues_list.append({
-            'correct_text': fix_data['correct_text'],
-            'variations': variations,
-            'all_rows': sorted(list(fix_data['all_rows'])),
-            'variation_count': len(variations)
+        # Get correct text (NO TRUNCATION)
+        correct_text = issue['correct_text']
+        
+        # Format rows (smart truncation for display)
+        all_rows = issue['all_rows']
+        if len(all_rows) <= 5:
+            rows_str = ', '.join(map(str, [r+2 for r in all_rows]))
+        else:
+            first_five = ', '.join(map(str, [r+2 for r in all_rows[:5]]))
+            rows_str = f"{first_five}... +{len(all_rows)-5}"
+        
+        table_rows.append({
+            'Type': issue_type,
+            'Problem': problem_text,
+            'Fix': correct_text,
+            'Rows': rows_str,
+            '_issue_idx': len(table_rows),  # Hidden index for selection
+            '_first_row': all_rows[0] if all_rows else 999999  # For sorting
         })
     
-    # Sort by first row number
-    issues_list.sort(key=lambda x: x['all_rows'][0] if x['all_rows'] else 0)
+    df = pd.DataFrame(table_rows)
     
-    total_fixable = len(issues_list)
+    # Sort by Type (Whitespace → Typo → Both), then by first row
+    # Auditor's Decision: "Mental mode batching"
+    type_order = {'Whitespace': 1, 'Typo': 2, 'Both': 3}
+    df['_type_order'] = df['Type'].map(type_order)
+    df = df.sort_values(['_type_order', '_first_row'])
+    df = df.drop(columns=['_type_order', '_first_row'])
     
-    if total_fixable == 0:
+    return df
+
+
+def render_category_pills(categorized):
+    """
+    Render two category pills showing variation counts
+    
+    NEW: Count individual variations (sub-issues), not groups.
+    Only 2 categories: Whitespace | Typos
+    """
+    whitespace_count = len(categorized['whitespace'])
+    typo_count = len(categorized['typo'])
+    
+    pills_html = f'''
+    <div style="display: flex; justify-content: space-evenly; margin: 20px 0;">
+        <span class="fixable-pill fixable-pill-whitespace">{whitespace_count} Whitespace Issues</span>
+        <span class="fixable-pill fixable-pill-typo">{typo_count} Typo Issues</span>
+    </div>
+    '''
+    st.markdown(pills_html, unsafe_allow_html=True)
+
+
+def render_detail_box(issue, categorized):
+    """
+    Render the detailed highlighting for a selected issue
+    
+    REUSES existing highlighting logic - the magic is preserved!
+    
+    Auditor's Insight: "The variation count belongs HERE, not in the table.
+    It keeps the GDG table as a 'clean grid' and makes the Detail Box feel more valuable."
+    """
+    correct_text = issue['correct_text']
+    variations = issue['variations']
+    variation_count = len(variations)
+    
+    # Determine border color by checking what types of variations this issue has
+    has_whitespace_var = any(not v.get('has_typo', False) for v in variations)
+    has_typo_var = any(v.get('has_typo', False) for v in variations)
+    
+    if has_whitespace_var and has_typo_var:
+        border_color = DesignTokens.FIXABLE['detail_border_both']  # Mixed
+    elif has_typo_var:
+        border_color = DesignTokens.FIXABLE['detail_border_typo']
+    else:
+        border_color = DesignTokens.FIXABLE['detail_border_whitespace']
+    
+    # Build variation display
+    if variation_count == 1:
+        # Single variation - show it normally
+        var = variations[0]
+        visual = highlight_differences(correct_text, var['problem_text'])
+        var_rows = ', '.join(map(str, [r + 2 for r in var['rows']]))
+        
+        st.markdown(f"""
+        <div style="
+            margin: 15px 0; 
+            padding: 15px; 
+            background: #ffffff; 
+            border-left: 3px solid {border_color};
+            border-radius: 12px;
+        ">
+            <div style="font-family: monospace; font-size: 14px; margin-bottom: 8px;">
+                {visual}
+            </div>
+            <div style="font-size: 11px; color: #999; margin-bottom: 8px;">
+                Rows: {var_rows}
+            </div>
+            <div style="font-size: 12px; color: #999; margin-bottom: 8px;">↓</div>
+            <div style="font-family: monospace; font-size: 14px; color: #16a34a; font-weight: 500;">
+                {correct_text}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        # Multiple variations - show all of them
+        st.markdown(f"""
+        <div style="
+            margin: 15px 0; 
+            padding: 15px; 
+            background: #ffffff; 
+            border-left: 3px solid {border_color};
+            border-radius: 12px;
+        ">
+            <div style="font-size: 12px; color: #666; margin-bottom: 10px; font-weight: 500;">
+                {variation_count} variations → same fix:
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Render each variation
+        for var in variations:
+            var_rows = ', '.join(map(str, [r + 2 for r in var['rows']]))
+            visual = highlight_differences(correct_text, var['problem_text'])
+            
+            st.markdown(f"""
+            <div style="margin-bottom: 10px; padding: 8px; background: #fafafa; border-radius: 4px;">
+                <div style="font-family: monospace; font-size: 13px; margin-bottom: 4px;">
+                    {visual}
+                </div>
+                <div style="font-size: 11px; color: #999;">
+                    Rows: {var_rows}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Show the fix result
+        st.markdown(f"""
+            <div style="font-size: 12px; color: #999; margin: 12px 0 8px 0;">↓</div>
+            <div style="font-family: monospace; font-size: 14px; color: #16a34a; font-weight: 500;">
+                {correct_text}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# ============================================================================
+# PRESERVED GROUPING LOGIC (V1) - This is brilliant, don't touch it!
+# ============================================================================
+
+def get_grouping_key(text):
+    """
+    Normalize text for grouping - strips and collapses whitespace
+    This ensures variations group together correctly
+    """
+    return ' '.join(text.split())
+
+
+def render_fixable_section(fixable_issues, df):
+    """
+    Display fixable issues section - GROUPED BY MEMBER ARCHITECTURE (V2.6)
+    
+    MAJOR CHANGE: Groups issues by member name for cleaner UX
+    - Table: One row per member (showing all issue IDs)
+    - Detail: Big HTML blob with all issues for selected member
+    
+    POC for future complex diagnostics (AI variance analysis, allocation validation, etc.)
+    Foundation built right, scales to anything.
+    
+    Args:
+        fixable_issues: List of issue dicts from final_table with Category in ['Whitespace', 'Parent Mismatch']
+        df: Original dataframe (for generating download)
+    """
+    
+    if not fixable_issues:
+        st.markdown("---")
+        st.markdown("### Fixable Issues")
+        st.markdown('<div class="fixable-pill fixable-pill-success">✓ 0 Fixable Issues - Data is Clean!</div>',
+                   unsafe_allow_html=True)
         return
     
-    # Section header
+    # ========================================================================
+    # STEP 1: COUNT BY CATEGORY (for pills)
+    # ========================================================================
+    whitespace_count = sum(1 for issue in fixable_issues if issue['Category'] == 'Whitespace')
+    typo_count = sum(1 for issue in fixable_issues if issue['Category'] == 'Parent Mismatch')
+    
+    # ========================================================================
+    # STEP 2: RENDER SECTION HEADER & PILLS
+    # ========================================================================
     st.markdown("---")
     st.markdown("### Fixable Issues")
     
-    # Simple count
-    st.markdown(f"<p style='color: #666; margin-bottom: 20px;'>{total_fixable} issue{'s' if total_fixable != 1 else ''} found</p>", unsafe_allow_html=True)
+    pills_html = f'''
+    <div style="display: flex; justify-content: space-evenly; margin: 20px 0;">
+        <span class="fixable-pill fixable-pill-whitespace">{whitespace_count} Whitespace Issues</span>
+        <span class="fixable-pill fixable-pill-typo">{typo_count} Parent Mismatch</span>
+    </div>
+    '''
+    st.markdown(pills_html, unsafe_allow_html=True)
     
-    # Expandable details
-    with st.expander("Show details", expanded=False):
-        
-        # Show each fix group
-        for issue in issues_list:
-            correct_text = issue['correct_text']
-            variations = issue['variations']
-            all_rows = ', '.join(map(str, [r + 2 for r in issue['all_rows']]))
-            variation_count = issue['variation_count']
-            
-            # Determine border color based on whether ANY variation has a typo
-            has_any_typo = any(v['has_typo'] for v in variations)
-            border_color = "#EA580C" if has_any_typo else "#DC2626"
-            
-            # Build variation display
-            if variation_count == 1:
-                # Single variation - show it normally
-                var = variations[0]
-                visual = highlight_differences(correct_text, var['problem_text'])
-                
-                st.markdown(f"""
-                <div style="margin: 15px 0; padding: 15px; background: #f9f9f9; border-left: 3px solid {border_color};">
-                    <div style="font-family: monospace; font-size: 14px; margin-bottom: 8px;">
-                        {visual}
-                    </div>
-                    <div style="font-size: 11px; color: #999; margin-bottom: 8px;">
-                        Rows: {all_rows}
-                    </div>
-                    <div style="font-size: 12px; color: #999; margin-bottom: 8px;">↓</div>
-                    <div style="font-family: monospace; font-size: 14px; color: #16a34a;">
-                        {correct_text}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                # Multiple variations - show all of them
-                # Build each variation separately to avoid nested f-string issues
-                st.markdown(f"""
-                <div style="margin: 15px 0; padding: 15px; background: #f9f9f9; border-left: 3px solid {border_color};">
-                    <div style="font-size: 12px; color: #666; margin-bottom: 10px; font-weight: 500;">
-                        {variation_count} variations → same fix:
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                # Render each variation
-                for var in variations:
-                    var_rows = ', '.join(map(str, [r + 2 for r in var['rows']]))
-                    visual = highlight_differences(correct_text, var['problem_text'])
-                    
-                    st.markdown(f"""
-                    <div style="margin-bottom: 10px; padding: 8px; background: #fff; border-radius: 4px;">
-                        <div style="font-family: monospace; font-size: 13px; margin-bottom: 4px;">
-                            {visual}
-                        </div>
-                        <div style="font-size: 11px; color: #999;">
-                            Rows: {var_rows}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Show the fix result - NO row repetition
-                st.markdown(f"""
-                    <div style="font-size: 12px; color: #999; margin: 12px 0 8px 0;">↓</div>
-                    <div style="font-family: monospace; font-size: 14px; color: #16a34a; font-weight: 500;">
-                        {correct_text}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-    
-    # Download button
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Apply fixes
+    # ========================================================================
+    # STEP 3: GROUP ISSUES BY MEMBER NAME
+    # ========================================================================
+    # Note: Family grouping already done in ui.py when errorlist.csv was created.
+    # Family numbers in Issue field (e.g., #5.1, #5.2, #5.3) indicate the family.
+    # We just need to group for DISPLAY purposes (one row per member in table).
+    #
+    # Import clean_name from the new module (DRY - don't duplicate!)
+    # ========================================================================
+    from collections import defaultdict
+    from .issue_family_grouping import clean_name
+    
+    member_groups = defaultdict(list)
+    
+    for issue in fixable_issues:
+        # ALWAYS use cleaned member name for grouping (consistent with ui.py)
+        # This fixes the bug where Parent Mismatch issues weren't being cleaned
+        if issue['Member Name'] != '—':
+            # Use cleaned member name
+            member_name = clean_name(issue['Member Name']) or issue['Member Name']
+        else:
+            # Orphan - use parent name with indicator
+            member_name = f"(Orphan) {issue['Parent Name']}"
+        
+        member_groups[member_name].append(issue)
+    
+    # ========================================================================
+    # STEP 4: BUILD GROUPED TABLE DATA
+    # ========================================================================
+    table_data = []
+    
+    for member_name, issues in member_groups.items():
+        # Collect issue IDs
+        issue_ids = ', '.join([issue['Issue'] for issue in issues])
+        
+        # Count total rows affected (parse Rows field)
+        total_rows = 0
+        for issue in issues:
+            rows_str = str(issue['Rows'])
+            # Count commas + 1 for simple count (not perfect but good enough)
+            if ',' in rows_str:
+                total_rows += rows_str.count(',') + 1
+            else:
+                total_rows += 1
+        
+        table_data.append({
+            'Member Name': member_name,
+            'Issues': issue_ids,
+            'Rows': total_rows,
+            '_issues_list': issues  # Hidden: full issue objects for detail view
+        })
+    
+    # Sort by member name for consistency
+    table_data = sorted(table_data, key=lambda x: x['Member Name'])
+    
+    # ========================================================================
+    # STEP 5: DISPLAY GROUPED TABLE
+    # ========================================================================
+    if 'fixable_expander_open' not in st.session_state:
+        st.session_state.fixable_expander_open = False
+    
+    with st.expander("View Fixable Issues Details", expanded=st.session_state.fixable_expander_open):
+        if not st.session_state.fixable_expander_open:
+            st.session_state.fixable_expander_open = True
+        
+        st.markdown("#### Issues Overview")
+        
+        # Create display dataframe (without hidden _issues_list column)
+        display_df = pd.DataFrame([
+            {
+                'Member Name': row['Member Name'],
+                'Issues': row['Issues'],
+                'Rows': row['Rows']
+            }
+            for row in table_data
+        ])
+        
+        # Display with selection
+        event = st.dataframe(
+            display_df,
+            hide_index=True,
+            width='stretch',
+            on_select='rerun',
+            selection_mode='single-row',
+            key='fixable_issues_grouped_table',
+            column_config={
+                'Member Name': st.column_config.TextColumn('Member Name', width=400),
+                'Issues': st.column_config.TextColumn('Issues', width=300),
+                'Rows': st.column_config.NumberColumn('Rows', width=100)
+            }
+        )
+        
+        # ====================================================================
+        # STEP 6: HANDLE SELECTION - RENDER BIG HTML BLOB FOR ALL ISSUES
+        # ====================================================================
+        if event and hasattr(event, 'selection') and event.selection.get('rows'):
+            selected_rows = event.selection['rows']
+            if selected_rows:
+                st.session_state.fixable_expander_open = True
+                selected_idx = selected_rows[0]
+                selected_member_data = table_data[selected_idx]
+                selected_member_name = selected_member_data['Member Name']
+                selected_issues = selected_member_data['_issues_list']
+                
+                # Render detail section with ALL issues for this member
+                st.markdown("#### Issue Details")
+                st.markdown(f"**{selected_member_name}** ({len(selected_issues)} issue{'s' if len(selected_issues) > 1 else ''})")
+                
+                # Build one big HTML blob with all issue detail boxes stacked
+                render_member_issues_blob(selected_issues)
+    
+    # ========================================================================
+    # STEP 7: DOWNLOAD BUTTON
+    # ========================================================================
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Apply fixes to dataframe
     fixed_df = df.copy()
     
-    # Fix all variations → correct text for each group
-    for issue in issues_list:
-        correct_text = issue['correct_text']
+    for issue in fixable_issues:
+        if issue['Category'] == 'Parent Mismatch':
+            problem = issue['Parent Name']
+            fix = issue['Member Name']
+        else:
+            if issue['Member Name'] != '—':
+                problem = issue['Member Name']
+                fix = issue['Member Name'].strip().replace('\t', ' ').replace('  ', ' ')
+            else:
+                problem = issue['Parent Name']
+                fix = issue['Parent Name'].strip().replace('\t', ' ').replace('  ', ' ')
         
-        for variation in issue['variations']:
-            problem_text = variation['problem_text']
-            
-            # Replace in both columns
-            fixed_df['_member_name'] = fixed_df['_member_name'].replace(problem_text, correct_text)
-            fixed_df['_parent_name'] = fixed_df['_parent_name'].replace(problem_text, correct_text)
+        # Replace in both columns
+        fixed_df['_member_name'] = fixed_df['_member_name'].replace(problem, fix)
+        fixed_df['_parent_name'] = fixed_df['_parent_name'].replace(problem, fix)
     
     # Download
+    from io import BytesIO
     csv_buffer = BytesIO()
     fixed_df.to_csv(csv_buffer, index=False)
     
@@ -468,3 +528,250 @@ def create_fixable_issues_section(whitespace_issues, parent_mismatches, df):
         type="primary",
         use_container_width=True
     )
+
+
+def render_member_issues_blob(issues):
+    """
+    Render ALL issues for a member in one big HTML blob
+    Stacks all detail boxes vertically - scrollable if many
+    
+    V2.8 - SCANDINAVIAN FINANCE GRADE STYLING
+    - Clean chunk highlighting for parent mismatches
+    - Background-only rounded pills for whitespace (no characters!)
+    - Pill-matching border colors (richer red/orange)
+    - Professional divider with "FIXED" label
+    - Dark mode ready
+    
+    This is the foundation for future complex diagnostics:
+    - AI variance explanations
+    - Multi-step allocation validation
+    - Dependency chain visualization
+    
+    Args:
+        issues: List of issue dicts for a single member
+    """
+    
+    # Get design tokens
+    tokens = DesignTokens.DETAIL_CARDS
+    
+    # Build CSS for detail cards (inline for Streamlit compatibility)
+    css = f"""
+    <style>
+        .detail-card {{
+            background: {tokens['bg_light']};
+            border-radius: {tokens['border_radius']};
+            padding: {tokens['card_padding']};
+            margin: {tokens['card_margin']};
+            border-left: {tokens['border_width']} solid transparent;
+            box-shadow: {tokens['shadow_light']};
+            transition: all 0.2s ease;
+        }}
+        
+        .detail-card:hover {{
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+            transform: translateY(-1px);
+        }}
+        
+        .detail-card.error {{
+            border-left-color: {DesignTokens.PILLS['error_bg_light']}; /* Match pill red */
+        }}
+        
+        .detail-card.warning {{
+            border-left-color: {DesignTokens.PILLS['warning_bg_light']}; /* Match pill orange */
+        }}
+        
+        .card-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: {tokens['element_spacing']};
+        }}
+        
+        .issue-info {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        
+        .issue-number {{
+            font-size: {tokens['font_size_header']};
+            font-weight: {tokens['font_weight_header']};
+            color: {tokens['text_header_light']};
+        }}
+        
+        .issue-divider {{
+            color: {DesignTokens.LIGHT['border']};
+            font-weight: 300;
+        }}
+        
+        .issue-category {{
+            font-size: {tokens['font_size_header']};
+            font-weight: 500;
+            color: {tokens['text_meta_light']};
+        }}
+        
+        .issue-rows {{
+            font-size: {tokens['font_size_meta']};
+            color: {tokens['text_label_light']};
+            font-weight: 400;
+            margin-left: 12px;
+        }}
+        
+        .card-problem {{
+            font-family: {tokens['font_family_mono']};
+            font-size: {tokens['font_size_code']};
+            color: {tokens['text_code_light']};
+            margin-bottom: {tokens['element_spacing']};
+            padding: 8px 0;
+            line-height: 1.5;
+        }}
+        
+        .card-problem .highlight-error {{
+            background-color: #fee2e2;
+            color: #991b1b;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: 500;
+        }}
+        
+        .card-divider {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: {tokens['element_spacing']} 0;
+        }}
+        
+        .divider-line {{
+            flex: 1;
+            height: 1px;
+            background: #e5e5e7;
+        }}
+        
+        .divider-label {{
+            font-size: {tokens['font_size_label']};
+            font-weight: 600;
+            color: {tokens['text_label_light']};
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        
+        .card-solution {{
+            font-family: {tokens['font_family_mono']};
+            font-size: {tokens['font_size_code']};
+            color: {tokens['text_success_light']};
+            font-weight: {tokens['font_weight_fixed']};
+            padding: 8px 0;
+        }}
+        
+        /* Dark mode */
+        @media (prefers-color-scheme: dark) {{
+            .detail-card {{
+                background: {tokens['bg_dark']};
+                box-shadow: {tokens['shadow_dark']};
+            }}
+            
+            .detail-card.error {{
+                border-left-color: {DesignTokens.PILLS['error_bg_dark']};
+            }}
+            
+            .detail-card.warning {{
+                border-left-color: {DesignTokens.PILLS['warning_bg_dark']};
+            }}
+            
+            .issue-number {{
+                color: {tokens['text_header_dark']};
+            }}
+            
+            .issue-divider {{
+                color: {DesignTokens.DARK['border']};
+            }}
+            
+            .issue-category {{
+                color: {tokens['text_meta_dark']};
+            }}
+            
+            .issue-rows {{
+                color: {tokens['text_label_dark']};
+            }}
+            
+            .card-problem {{
+                color: {tokens['text_code_dark']};
+            }}
+            
+            .card-problem .highlight-error {{
+                background-color: #7f1d1d;
+                color: #fca5a5;
+            }}
+            
+            .divider-line {{
+                background: #2a2a2a;
+            }}
+            
+            .divider-label {{
+                color: {tokens['text_label_dark']};
+            }}
+            
+            .card-solution {{
+                color: {tokens['text_success_dark']};
+            }}
+        }}
+    </style>
+    """
+    
+    # Build complete HTML document for components.html()
+    # This is necessary because components.html() renders in an iframe
+    html_parts = ['<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif;">']
+    html_parts.append(css)
+    
+    # Now render each card HTML
+    for idx, issue in enumerate(issues):
+        # Determine card class based on category
+        card_class = 'error' if issue['Category'] == 'Parent Mismatch' else 'warning'
+        
+        # Extract problem and fix text
+        if issue['Category'] == 'Parent Mismatch':
+            problem = issue['Parent Name']
+            fix = issue['Member Name']
+        else:
+            if issue['Member Name'] != '—':
+                problem = issue['Member Name']
+                fix = issue['Member Name'].strip().replace('\t', ' ').replace('  ', ' ')
+            else:
+                problem = issue['Parent Name']
+                fix = issue['Parent Name'].strip().replace('\t', ' ').replace('  ', ' ')
+        
+        # Generate visual comparison with highlighting
+        visual_html = highlight_differences(fix, problem)
+        
+        # Build card HTML using string concatenation to avoid escaping
+        card_html = (
+            '<div class="detail-card ' + card_class + '">'
+            '<div class="card-header">'
+            '<div class="issue-info">'
+            '<span class="issue-number">' + issue['Issue'] + '</span>'
+            '<span class="issue-divider">·</span>'
+            '<span class="issue-category">' + issue['Category'] + '</span>'
+            '</div>'
+            '<span class="issue-rows">Rows: ' + issue['Rows'] + '</span>'
+            '</div>'
+            '<div class="card-problem">' + visual_html + '</div>'
+            '<div class="card-divider">'
+            '<div class="divider-line"></div>'
+            '<span class="divider-label">Fixed</span>'
+            '<div class="divider-line"></div>'
+            '</div>'
+            '<div class="card-solution">' + fix + '</div>'
+            '</div>'
+        )
+        
+        html_parts.append(card_html)
+    
+    html_parts.append('</div>')
+    
+    # Combine and render using components.html (which doesn't escape HTML)
+    full_html = '\n'.join(html_parts)
+    
+    # Calculate height based on number of issues (each card ~200px + margins)
+    height = min(800, len(issues) * 220 + 50)
+    
+    components.html(full_html, height=height, scrolling=True)

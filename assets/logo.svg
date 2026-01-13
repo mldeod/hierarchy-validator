@@ -1,0 +1,11 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Option 2: Tan/sand color -->
+  <rect width="256" height="256" rx="48" ry="48" fill="#EBE0CF"/>
+  
+  <g transform="translate(128, 128)">
+    <circle cx="0" cy="0" r="75" fill="none" stroke="#0051D5" stroke-width="10"/>
+    <circle cx="0" cy="0" r="48" fill="none" stroke="#0051D5" stroke-width="10"/>
+    <circle cx="0" cy="0" r="22" fill="none" stroke="#0051D5" stroke-width="8"/>
+    <circle cx="0" cy="0" r="10" fill="#0051D5"/>
+  </g>
+</svg>
