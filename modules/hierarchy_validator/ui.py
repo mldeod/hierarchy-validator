@@ -6,6 +6,7 @@ Beautiful light-themed presentation with comprehensive validation display
 import streamlit as st
 import pandas as pd
 from collections import defaultdict
+import hashlib
 
 # Import validation engine
 from modules.hierarchy_validator.validation_engine import (
@@ -67,9 +68,13 @@ def render(workflow_data=None):
 
         if uploaded_file:
             # AUDITOR PATTERN: Clear validation state on new file upload
-            # Check if file changed by comparing with stored file name
-            if 'last_uploaded_file' not in st.session_state or st.session_state.last_uploaded_file != uploaded_file.name:
-                st.session_state.last_uploaded_file = uploaded_file.name
+            # Hash-based cache busting: detects file content changes, not just filename
+            file_content = uploaded_file.getvalue()
+            file_hash = hashlib.md5(file_content).hexdigest()
+            file_id = f"{uploaded_file.name}_{file_hash}"
+            
+            if 'last_uploaded_file_id' not in st.session_state or st.session_state.last_uploaded_file_id != file_id:
+                st.session_state.last_uploaded_file_id = file_id
                 # Clear previous validation results
                 if 'validation_results' in st.session_state:
                     del st.session_state.validation_results
